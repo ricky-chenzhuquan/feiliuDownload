@@ -1,7 +1,7 @@
 //! Tauri 命令层：前端通过 invoke 调用。
 use std::path::Path;
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::downloader::engine::TaskManager;
@@ -31,6 +31,18 @@ pub async fn pause_task(state: State<'_, TaskManager>, id: String) -> Result<(),
 #[tauri::command]
 pub async fn resume_task(state: State<'_, TaskManager>, id: String) -> Result<(), String> {
     state.inner.resume_task(&id).await
+}
+
+#[tauri::command]
+pub async fn pause_all_tasks(state: State<'_, TaskManager>) -> Result<(), String> {
+    state.inner.pause_all().await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn resume_all_tasks(state: State<'_, TaskManager>) -> Result<(), String> {
+    state.inner.resume_all().await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -92,4 +104,69 @@ pub fn is_mobile() -> bool {
 #[tauri::command]
 pub async fn reveal_path(_app: AppHandle, path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(Path::new(&path)).map_err(|e| e.to_string())
+}
+
+// ---------- 应用自动更新 ----------
+
+#[derive(serde::Serialize)]
+pub struct UpdateInfo {
+    pub available: bool,
+    pub version: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// 检查更新（GitHub Releases latest.json）
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> Result<UpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app
+        .updater_builder()
+        .build()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(match update {
+        Some(u) => UpdateInfo {
+            available: true,
+            version: Some(u.version.clone()),
+            notes: u.body.clone(),
+        },
+        None => UpdateInfo {
+            available: false,
+            version: None,
+            notes: None,
+        },
+    })
+}
+
+/// 下载并安装更新，完成后自动重启
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app
+        .updater_builder()
+        .build()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("当前已是最新版本")?;
+
+    let app2 = app.clone();
+    let mut downloaded: u64 = 0;
+    update
+        .download_and_install(
+            move |chunk, total| {
+                downloaded += chunk as u64;
+                let _ = app2.emit("update://progress", (downloaded, total));
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    // 安装成功后重启应用加载新版本
+    app.restart();
+    #[allow(unreachable_code)]
+    Ok(())
 }

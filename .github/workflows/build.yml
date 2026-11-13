@@ -1,4 +1,4 @@
-name: Build Desktop Apps
+name: Build & Release
 
 on:
   workflow_dispatch:
@@ -14,10 +14,10 @@ jobs:
         include:
           - os: macos-latest
             targets: aarch64-apple-darwin
-            bundle-glob: "*.dmg"
+            artifact-name: feiliu-macos
           - os: windows-latest
             targets: ""
-            bundle-glob: "*.{msi,exe}"
+            artifact-name: feiliu-windows
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,16 +45,76 @@ jobs:
         working-directory: app
         run: pnpm install --frozen-lockfile
 
+      # 配置了 TAURI_SIGNING_PRIVATE_KEY secret 时，额外产出签名更新包（用于应用内自动更新）
       - name: Build Tauri app
         working-directory: app
-        run: pnpm tauri build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ARGS=""
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "updater signing enabled"
+            ARGS='--config "{\"bundle\":{\"createUpdaterArtifacts\":true}}"'
+          fi
+          pnpm tauri build $ARGS
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Collect artifacts (macOS)
+        if: matrix.os == 'macos-latest'
+        working-directory: app/src-tauri/target/release/bundle
+        run: |
+          mkdir -p /tmp/feiliu-out
+          cp dmg/*.dmg /tmp/feiliu-out/ || true
+          cp macos/*.app.tar.gz /tmp/feiliu-out/ 2>/dev/null || true
+          cp macos/*.app.tar.gz.sig /tmp/feiliu-out/ 2>/dev/null || true
+          ls -la /tmp/feiliu-out
+
+      - name: Collect artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        working-directory: app/src-tauri/target/release/bundle
+        run: |
+          mkdir -p /tmp/feiliu-out
+          cp nsis/*-setup.exe /tmp/feiliu-out/ 2>/dev/null || true
+          cp nsis/*-setup.exe.sig /tmp/feiliu-out/ 2>/dev/null || true
+          cp msi/*.msi /tmp/feiliu-out/ 2>/dev/null || true
+          ls -la /tmp/feiliu-out
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: feiliu-${{ matrix.os }}
-          path: |
-            app/src-tauri/target/release/bundle/dmg/${{ matrix.bundle-glob }}
-            app/src-tauri/target/release/bundle/msi/${{ matrix.bundle-glob }}
-            app/src-tauri/target/release/bundle/nsis/${{ matrix.bundle-glob }}
-          if-no-files-found: ignore
+          name: ${{ matrix.artifact-name }}
+          path: /tmp/feiliu-out/*
+          if-no-files-found: error
+
+  release:
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Generate updater manifest (latest.json)
+        env:
+          REPO: ricky-chenzhuquan/feiliuDownload
+          TAG: ${{ github.ref_name }}
+        run: node scripts/gen-latest-json.js dist "$TAG" "$REPO"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/**/*.dmg
+            dist/**/*.msi
+            dist/**/*-setup.exe
+            dist/**/*.app.tar.gz
+            dist/**/*.app.tar.gz.sig
+            dist/**/*-setup.exe.sig
+            dist/latest.json

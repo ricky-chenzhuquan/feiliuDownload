@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>飞流下载 · FeiLiu Downloader — 多线程高速下载器</title>
-  <meta name="description" content="飞流下载：多线程高速下载器，最高 64 连接并行，断点续传，支持 macOS、Windows、iOS。" />
+  <title>FeiLiu Downloader — Multi-threaded High-speed Downloader</title>
+  <meta name="description" content="FeiLiu Downloader: multi-threaded high-speed downloader with up to 64 parallel connections and full resume support. Available for macOS, Windows and iOS." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='48' x2='48' y2='0'%3E%3Cstop offset='0' stop-color='%235b8cff'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='1' y='1' width='46' height='46' rx='12' fill='url(%23g)'/%3E%3Cpath d='M27.5 8 15 27h8l-1.5 13L34 21h-8z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -18,129 +18,140 @@
           <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#lg)"/>
           <path d="M27.5 8 15 27h8l-1.5 13L34 21h-8z" fill="#fff"/>
         </svg>
-        <span>飞流下载</span>
+        <span>FeiLiu</span>
       </a>
       <nav class="links">
-        <a href="#features">功能</a>
-        <a href="#download">下载</a>
-        <a href="#faq">常见问题</a>
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
+        <a href="https://github.com/ricky-chenzhuquan/feiliuDownload" target="_blank" rel="noopener">GitHub ↗</a>
       </nav>
-      <a class="btn-nav" href="#download">立即下载</a>
+      <div class="lang-switch" id="langSwitch">
+        <button data-lang="en" class="active">EN</button>
+        <button data-lang="zh">中文</button>
+        <button data-lang="ja">日本語</button>
+        <button data-lang="de">DE</button>
+      </div>
+      <a class="btn-nav" href="#download" data-i18n="nav.cta">Get the App</a>
     </div>
   </header>
 
   <!-- Hero -->
   <section class="hero">
     <div class="hero-inner">
-      <div class="hero-badge">⚡ 最高 64 连接并行 · 断点续传 · 免费</div>
-      <h1>快如<span class="grad">飞流</span>的多线程下载器</h1>
-      <p class="hero-sub">
-        服务器限速？大文件下载龟速？飞流下载用多连接分片技术把带宽吃满，
-        下载速度提升数倍到数十倍。桌面版与 iOS 版同时支持。
+      <div class="hero-badge" data-i18n="hero.badge">⚡ Up to 64 parallel connections · Full resume support · Free</div>
+      <h1 data-i18n-html="hero.title">The <span class="grad">blazing fast</span> multi-threaded downloader</h1>
+      <p class="hero-sub" data-i18n="hero.sub">
+        Server throttling your downloads? Huge files crawling at a snail's pace?
+        FeiLiu splits files into chunks and downloads them in parallel — saturating your
+        bandwidth, several times faster. For desktop and iOS.
       </p>
       <div class="hero-actions">
-        <a class="btn-hero primary" href="#download">免费下载</a>
-        <a class="btn-hero ghost" href="#features">了解功能</a>
+        <a class="btn-hero primary" href="#download" data-i18n="hero.cta1">Download Free</a>
+        <a class="btn-hero ghost" href="#features" data-i18n="hero.cta2">Explore Features</a>
       </div>
       <div class="hero-stats">
-        <div class="stat"><b>64</b><span>最大连接数</span></div>
-        <div class="stat"><b>∞</b><span>断点续传</span></div>
-        <div class="stat"><b>3</b><span>端同时支持</span></div>
-        <div class="stat"><b>0</b><span>广告与捆绑</span></div>
+        <div class="stat"><b>64</b><span data-i18n="stats.c1">Max connections</span></div>
+        <div class="stat"><b>∞</b><span data-i18n="stats.c2">Resume anywhere</span></div>
+        <div class="stat"><b>3</b><span data-i18n="stats.c3">Platforms</span></div>
+        <div class="stat"><b>0</b><span data-i18n="stats.c4">Ads or bundleware</span></div>
       </div>
     </div>
   </section>
 
   <!-- 功能 -->
   <section class="features" id="features">
-    <h2>为什么选择飞流下载</h2>
+    <h2 data-i18n="features.title">Why FeiLiu Downloader</h2>
     <div class="feature-grid">
       <div class="feature">
         <div class="f-icon">🚀</div>
-        <h3>多连接加速</h3>
-        <p>自动将文件切分为 8MiB 分片，最高 64 连接并行下载。针对限速服务器效果拔群。</p>
+        <h3 data-i18n="features.f1.t">Multi-connection acceleration</h3>
+        <p data-i18n="features.f1.p">Files are split into 8 MiB chunks and downloaded with up to 64 parallel connections. Dramatic speedups on throttled servers.</p>
       </div>
       <div class="feature">
         <div class="f-icon">⏸️</div>
-        <h3>暂停与续传</h3>
-        <p>随时暂停、继续；应用重启后自动从断点恢复，不浪费一字节流量。</p>
+        <h3 data-i18n="features.f2.t">Pause &amp; resume</h3>
+        <p data-i18n="features.f2.p">Pause anytime and continue later. Interrupted downloads resume automatically on restart — not a byte wasted.</p>
       </div>
       <div class="feature">
         <div class="f-icon">🔍</div>
-        <h3>智能探测</h3>
-        <p>粘贴链接自动识别文件名与大小，探测服务器是否支持多线程并智能降级。</p>
+        <h3 data-i18n="features.f3.t">Smart probing</h3>
+        <p data-i18n="features.f3.p">Paste a link and FeiLiu detects the filename, size and range support, falling back to a single connection when a server doesn't allow ranges.</p>
       </div>
       <div class="feature">
         <div class="f-icon">🗂️</div>
-        <h3>多任务管理</h3>
-        <p>多个任务并行下载，实时速度、剩余时间、连接数一目了然。</p>
+        <h3 data-i18n="features.f4.t">Task manager</h3>
+        <p data-i18n="features.f4.p">Download multiple files in parallel, with live speed, ETA and connection count at a glance.</p>
       </div>
       <div class="feature">
         <div class="f-icon">🛡️</div>
-        <h3>纯净无广告</h3>
-        <p>无广告、无捆绑、无后台上传。Rust 引擎本地运行，不收集任何数据。</p>
+        <h3 data-i18n="features.f5.t">Clean &amp; private</h3>
+        <p data-i18n="features.f5.p">No ads, no bundleware, no background uploads. A local Rust engine that collects nothing.</p>
       </div>
       <div class="feature">
         <div class="f-icon">🪶</div>
-        <h3>轻量极速</h3>
-        <p>Tauri 架构，安装包仅十余 MB，内存占用极低，老电脑也流畅。</p>
+        <h3 data-i18n="features.f6.t">Feather-light</h3>
+        <p data-i18n="features.f6.p">Built on Tauri — a ~4 MB installer that barely touches memory. Old machines welcome.</p>
       </div>
     </div>
   </section>
 
   <!-- 下载 -->
   <section class="download" id="download">
-    <h2>下载飞流</h2>
-    <p class="dl-sub">选择你的平台 · 当前版本 v0.1.0</p>
+    <h2 data-i18n="download.title">Download FeiLiu</h2>
+    <p class="dl-sub" data-i18n="download.sub">Choose your platform · v0.1.0</p>
     <div class="dl-grid">
       <div class="dl-card">
         <div class="dl-icon"></div>
-        <h3>macOS</h3>
-        <p class="dl-req">Apple Silicon (M 系列) · macOS 10.15+</p>
-        <a class="btn-dl primary" href="releases/FeiLiu_0.1.0_aarch64.dmg" download>下载 dmg</a>
+        <h3 data-i18n="dl.mac.name">macOS</h3>
+        <p class="dl-req" data-i18n="dl.mac.req">Apple Silicon (M series) · macOS 10.15+</p>
+        <a class="btn-dl primary" href="https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_aarch64.dmg" data-i18n="dl.mac.btn">Download dmg</a>
       </div>
       <div class="dl-card">
         <div class="dl-icon">🪟</div>
-        <h3>Windows</h3>
-        <p class="dl-req">Windows 10/11 · 64 位</p>
-        <a class="btn-dl" href="#" onclick="alert('Windows 安装包由 GitHub Actions 自动构建，推送到 GitHub 仓库后即可在此下载');return false;">即将提供</a>
-        <span class="dl-hint">推送仓库后 CI 自动出包</span>
+        <h3 data-i18n="dl.win.name">Windows</h3>
+        <p class="dl-req" data-i18n="dl.win.req">Windows 10/11 · 64-bit</p>
+        <a class="btn-dl primary" href="https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_x64-setup.exe" data-i18n="dl.win.btn">Download installer</a>
+        <span class="dl-hint" data-i18n="dl.win.hint">Built automatically by GitHub Actions</span>
       </div>
       <div class="dl-card soon">
         <div class="dl-icon">📱</div>
-        <h3>iOS</h3>
-        <p class="dl-req">iOS 13+ · iPhone / iPad</p>
-        <a class="btn-dl" href="#" onclick="alert('iOS 版已开发完成，需要 Apple 开发者签名后上架 App Store / TestFlight');return false;">敬请期待</a>
-        <span class="dl-hint">工程已就绪 · 待签名发布</span>
+        <h3 data-i18n="dl.ios.name">iOS</h3>
+        <p class="dl-req" data-i18n="dl.ios.req">iOS 13+ · iPhone / iPad</p>
+        <a class="btn-dl" href="#" onclick="alert(i18n.t('dl.ios.alert'));return false;" data-i18n="dl.ios.btn">Coming soon</a>
+        <span class="dl-hint" data-i18n="dl.ios.hint">Project ready · pending release signing</span>
       </div>
       <div class="dl-card soon">
         <div class="dl-icon">🤖</div>
-        <h3>Android</h3>
-        <p class="dl-req">Android 8.0+</p>
-        <a class="btn-dl" href="#" onclick="return false;">敬请期待</a>
-        <span class="dl-hint">Tauri 2 同框架规划中</span>
+        <h3 data-i18n="dl.android.name">Android</h3>
+        <p class="dl-req" data-i18n="dl.android.req">Android 8.0+</p>
+        <a class="btn-dl" href="#" onclick="return false;" data-i18n="dl.android.btn">Coming soon</a>
+        <span class="dl-hint" data-i18n="dl.android.hint">Planned on the same Tauri 2 stack</span>
       </div>
     </div>
+    <p class="dl-all">
+      <a href="https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest" target="_blank" rel="noopener" data-i18n="download.all">All releases &amp; older versions ↗</a>
+    </p>
   </section>
 
   <!-- FAQ -->
   <section class="faq" id="faq">
-    <h2>常见问题</h2>
+    <h2 data-i18n="faq.title">FAQ</h2>
     <details>
-      <summary>为什么下载速度能提升这么多？</summary>
-      <p>很多网站对单个连接限速。飞流下载会把文件切成多个分片，用最多 64 个连接同时下载不同部分，绕过单连接限速，把你的带宽吃满。</p>
+      <summary data-i18n="faq.q1">Why is the download so much faster?</summary>
+      <p data-i18n="faq.a1">Many websites throttle each connection. FeiLiu splits the file into chunks and downloads different parts with up to 64 simultaneous connections, bypassing per-connection limits and saturating your bandwidth.</p>
     </details>
     <details>
-      <summary>所有网站都支持多线程加速吗？</summary>
-      <p>取决于服务器是否支持「断点续传」（Accept-Ranges）。新建任务时飞流会自动探测并在界面上提示；不支持的服务器会自动使用单连接，保证兼容性。</p>
+      <summary data-i18n="faq.q2">Does multi-connection work on every site?</summary>
+      <p data-i18n="faq.a2">It depends on whether the server supports byte ranges (Accept-Ranges). FeiLiu probes this automatically for every task and shows it in the UI; unsupported servers gracefully fall back to a single connection.</p>
     </details>
     <details>
-      <summary>暂停后重启应用，下载会丢吗？</summary>
-      <p>不会。每个分片的进度都实时保存在磁盘上，重启应用后点击「继续」即从断点恢复，已下载的部分不会重下。</p>
+      <summary data-i18n="faq.q3">Will my download survive an app restart?</summary>
+      <p data-i18n="faq.a3">Yes. Every chunk's progress is stored on disk in real time. After restarting, click resume (or enable auto-resume) and it continues from the exact byte where it stopped.</p>
     </details>
     <details>
-      <summary>iOS 版什么时候可以下载？</summary>
-      <p>iOS 版应用已开发完成，正在准备签名与上架流程。届时将通过 App Store 或 TestFlight 提供。</p>
+      <summary data-i18n="faq.q4">When will the iOS version be available?</summary>
+      <p data-i18n="faq.a4">The iOS app is complete and being prepared for signing and release. It will be available via App Store / TestFlight.</p>
     </details>
   </section>
 
@@ -148,24 +159,16 @@
     <div class="footer-inner">
       <div class="f-brand">
         <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-          <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#lg)"/>
+          <defs><linearGradient id="lg2" x1="0" y1="48" x2="48" y2="0"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+          <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#lg2)"/>
           <path d="M27.5 8 15 27h8l-1.5 13L34 21h-8z" fill="#fff"/>
         </svg>
-        <span>飞流下载 FeiLiu</span>
+        <span data-i18n="footer.brand">FeiLiu Downloader</span>
       </div>
-      <div class="f-note">基于 Tauri 2 与 Rust 构建 · MIT License</div>
+      <div class="f-note" data-i18n="footer.note">Built with Tauri 2 &amp; Rust · MIT License</div>
     </div>
   </footer>
 
-  <script>
-    // 平滑滚动
-    document.querySelectorAll('a[href^="#"]').forEach((a) =>
-      a.addEventListener("click", (e) => {
-        const id = a.getAttribute("href").slice(1);
-        const el = id ? document.getElementById(id) : null;
-        if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth" }); }
-      })
-    );
-  </script>
+  <script src="js/main.js"></script>
 </body>
 </html>

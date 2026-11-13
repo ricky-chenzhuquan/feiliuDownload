@@ -6,3 +6,7 @@ app/src-tauri/target/
 app/src-tauri/gen/schemas/
 # 系统文件
 .DS_Store
+# 构建产物走 GitHub Releases，不进仓库
+website/releases/
+*.private
+app/src-tauri/gen/apple/build/

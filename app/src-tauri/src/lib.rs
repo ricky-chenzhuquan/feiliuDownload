@@ -10,12 +10,16 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(TaskManager::new())
         .invoke_handler(tauri::generate_handler![
             commands::probe_url,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,
+            commands::pause_all_tasks,
+            commands::resume_all_tasks,
             commands::delete_task,
             commands::list_tasks,
             commands::get_settings,
@@ -23,6 +27,8 @@ pub fn run() {
             commands::pick_folder,
             commands::is_mobile,
             commands::reveal_path,
+            commands::check_for_update,
+            commands::install_update,
         ])
         .setup(|app| {
             set_app_handle(app.handle().clone());

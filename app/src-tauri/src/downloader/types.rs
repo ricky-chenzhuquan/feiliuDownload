@@ -42,6 +42,12 @@ pub struct Settings {
     pub download_dir: String,
     pub max_connections: u32,
     pub max_concurrent_tasks: u32,
+    #[serde(default = "default_true")]
+    pub auto_resume_on_launch: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -53,6 +59,7 @@ impl Default for Settings {
             download_dir: dir.to_string_lossy().into_owned(),
             max_connections: 16,
             max_concurrent_tasks: 3,
+            auto_resume_on_launch: true,
         }
     }
 }

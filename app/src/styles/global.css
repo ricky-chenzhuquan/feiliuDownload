@@ -185,6 +185,79 @@ select {
   font-weight: 700;
 }
 
+.head-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn.sm {
+  padding: 6px 13px;
+  font-size: 12.5px;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(91, 140, 255, 0.14), rgba(34, 211, 238, 0.08));
+  border: 1px solid rgba(91, 140, 255, 0.35);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.update-banner span {
+  flex: 1;
+  color: var(--text-dim);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text);
+  margin: 16px 0 4px;
+}
+
+.check-row input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 34px;
+  font-size: 13.5px;
+}
+
+.upd-ok {
+  color: #9db9ff;
+}
+
+.dim {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.dim.err {
+  color: var(--danger);
+}
+
+.dim-note {
+  color: var(--text-faint);
+  font-size: 12px;
+  margin-top: 10px;
+  line-height: 1.6;
+}
+
 /* ---- 按钮 ---- */
 .btn {
   display: inline-flex;

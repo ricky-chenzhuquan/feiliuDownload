@@ -36,6 +36,7 @@ export interface Settings {
   download_dir: string;
   max_connections: number;
   max_concurrent_tasks: number;
+  auto_resume_on_launch: boolean;
 }
 
 export type TaskEvent =
@@ -60,6 +61,10 @@ export const pauseTask = (id: string) => invoke<void>("pause_task", { id });
 
 export const resumeTask = (id: string) => invoke<void>("resume_task", { id });
 
+export const pauseAllTasks = () => invoke<void>("pause_all_tasks");
+
+export const resumeAllTasks = () => invoke<void>("resume_all_tasks");
+
 export const deleteTask = (id: string, deleteFile: boolean) =>
   invoke<void>("delete_task", { id, deleteFile });
 
@@ -73,6 +78,25 @@ export const setSettings = (settings: Settings) =>
 export const pickFolder = () => invoke<string | null>("pick_folder");
 
 export const isMobile = () => invoke<boolean>("is_mobile");
+
+// ---------- 应用更新 ----------
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string | null;
+  notes: string | null;
+}
+
+export const checkForUpdate = () => invoke<UpdateInfo>("check_for_update");
+
+export const installUpdate = () => invoke<void>("install_update");
+
+export const onUpdateProgress = (
+  handler: (downloaded: number, total: number | null) => void,
+) =>
+  listen<[number, number | null]>("update://progress", (e) =>
+    handler(e.payload[0], e.payload[1]),
+  );
 
 export const revealPath = (path: string) =>
   invoke<void>("reveal_path", { path });

@@ -115,7 +115,7 @@ impl TaskManager {
 impl Inner {
     // ---------- 初始化 ----------
 
-    pub fn set_app(&self, app: AppHandle) {
+    pub fn set_app(self: &Arc<Self>, app: AppHandle) {
         let _ = self.app.set(app.clone());
         let data_dir = app
             .path()
@@ -142,6 +142,28 @@ impl Inner {
 
         self.load_persisted();
         self.emit_list();
+
+        // 启动自动恢复：把上次中断（Paused）的任务重新排队
+        if self.settings.read().unwrap().auto_resume_on_launch {
+            let ids: Vec<String> = {
+                let tasks = self.tasks.lock().unwrap();
+                tasks
+                    .values()
+                    .filter(|s| *s.status.read().unwrap() == TaskStatus::Paused)
+                    .map(|s| s.id.clone())
+                    .collect()
+            };
+            if !ids.is_empty() {
+                for id in ids {
+                    if let Some(s) = self.tasks.lock().unwrap().get(&id) {
+                        *s.status.write().unwrap() = TaskStatus::Queued;
+                    }
+                }
+                self.persist();
+                self.emit_list();
+                self.dispatch();
+            }
+        }
     }
 
     pub fn persist_settings(&self) {
@@ -203,7 +225,7 @@ impl Inner {
         }
         drop(tasks);
         drop(order);
-        self.persist_sync();
+        self.persist();
     }
 
     fn build_task_list(&self) -> Vec<PersistedTask> {
@@ -232,16 +254,9 @@ impl Inner {
             .collect()
     }
 
-    /// 异步上下文中使用（spawn_blocking 写盘）
+    /// 同步写盘。任务清单很小（几 KB），任何线程直接写都足够快，
+    /// 这样也避免了 .setup() 主线程没有 tokio 运行时上下文的问题。
     fn persist(&self) {
-        let Some(path) = self.tasks_json.get() else { return };
-        let list = self.build_task_list();
-        let path = path.clone();
-        tokio::task::spawn_blocking(move || save_task_list(&path, &list));
-    }
-
-    /// 无 tokio 运行时上下文时使用（如 .setup() 主线程）
-    fn persist_sync(&self) {
         let Some(path) = self.tasks_json.get() else { return };
         save_task_list(path, &self.build_task_list());
     }
@@ -465,6 +480,46 @@ impl Inner {
                 Ok(())
             }
             _ => Err("任务状态不支持继续".into()),
+        }
+    }
+
+    /// 暂停全部运行中/排队中的任务
+    pub async fn pause_all(&self) {
+        let ids: Vec<String> = {
+            let tasks = self.tasks.lock().unwrap();
+            tasks
+                .values()
+                .filter(|s| {
+                    matches!(
+                        *s.status.read().unwrap(),
+                        TaskStatus::Downloading | TaskStatus::Queued
+                    )
+                })
+                .map(|s| s.id.clone())
+                .collect()
+        };
+        for id in ids {
+            let _ = self.pause_task(&id).await;
+        }
+    }
+
+    /// 恢复全部已暂停/失败的任务
+    pub async fn resume_all(self: &Arc<Self>) {
+        let ids: Vec<String> = {
+            let tasks = self.tasks.lock().unwrap();
+            tasks
+                .values()
+                .filter(|s| {
+                    matches!(
+                        *s.status.read().unwrap(),
+                        TaskStatus::Paused | TaskStatus::Failed
+                    )
+                })
+                .map(|s| s.id.clone())
+                .collect()
+        };
+        for id in ids {
+            let _ = self.resume_task(&id).await;
         }
     }
 

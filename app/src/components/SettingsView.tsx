@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { getSettings, isMobile, pickFolder, setSettings, type Settings } from "../lib/api";
+import {
+  checkForUpdate,
+  getSettings,
+  isMobile,
+  pickFolder,
+  setSettings,
+  installUpdate,
+  type Settings,
+  type UpdateInfo,
+} from "../lib/api";
 import { IconFolder } from "./Icons";
 
 export default function SettingsView() {
@@ -7,6 +16,10 @@ export default function SettingsView() {
   const [mobile, setMobile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [updateState, setUpdateState] = useState<
+    "idle" | "checking" | UpdateInfo | "error"
+  >("idle");
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     getSettings().then(setLocal);
@@ -30,6 +43,58 @@ export default function SettingsView() {
   const chooseDir = async () => {
     const p = await pickFolder();
     if (p) setLocal({ ...settings, download_dir: p });
+  };
+
+  const check = async () => {
+    setUpdateState("checking");
+    try {
+      const info = await checkForUpdate();
+      setUpdateState(info);
+    } catch {
+      setUpdateState("error");
+    }
+  };
+
+  const install = async () => {
+    setInstalling(true);
+    try {
+      await installUpdate(); // 成功后自动重启
+    } catch (e) {
+      alert(String(e));
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const renderUpdate = () => {
+    if (updateState === "idle")
+      return (
+        <button className="btn ghost" onClick={check}>
+          检查更新
+        </button>
+      );
+    if (updateState === "checking") return <span className="dim">检查中…</span>;
+    if (updateState === "error")
+      return (
+        <>
+          <span className="dim err">检查失败（网络或无可用发布）</span>
+          <button className="btn ghost" onClick={check}>
+            重试
+          </button>
+        </>
+      );
+    if (updateState.available)
+      return (
+        <>
+          <span className="upd-ok">
+            新版本 <b>v{updateState.version}</b> 可用
+          </span>
+          <button className="btn primary" onClick={install} disabled={installing}>
+            {installing ? "下载中…" : "下载并安装"}
+          </button>
+        </>
+      );
+    return <span className="dim">当前已是最新版本 ✓</span>;
   };
 
   return (
@@ -98,11 +163,30 @@ export default function SettingsView() {
           </div>
         </div>
 
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={settings.auto_resume_on_launch}
+            onChange={(e) =>
+              setLocal({ ...settings, auto_resume_on_launch: e.target.checked })
+            }
+          />
+          <span>启动时自动恢复未完成的下载</span>
+        </label>
+
         <div className="settings-actions">
           <button className="btn primary" onClick={save} disabled={saving}>
             {saving ? "保存中…" : saved ? "已保存 ✓" : "保存设置"}
           </button>
         </div>
+      </div>
+
+      <div className="settings-card">
+        <h3>应用更新</h3>
+        <div className="update-row">{renderUpdate()}</div>
+        <p className="dim-note">
+          应用会自动检查新版本（GitHub Releases 发布通道），更新包经签名校验后安装。
+        </p>
       </div>
 
       <div className="settings-card muted">
