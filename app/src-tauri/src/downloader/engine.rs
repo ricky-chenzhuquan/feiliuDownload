@@ -1,0 +1,1126 @@
+//! 多连接下载引擎：动态分片队列 + N 连接并发 + 暂停/续传/取消。
+//!
+//! 核心思路（沿用 scripts/pdl.py 的验证过的方案）：
+//! - 8MiB 分片塞进共享队列，每个连接取一段下一段，快连接自然多拿
+//! - 分片文件大小 = 进度，断点续传零额外状态
+//! - 完成后按序合并并校验总大小
+use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::time::Duration;
+
+use futures::StreamExt;
+use reqwest::header::RANGE;
+use reqwest::StatusCode;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::AsyncWriteExt;
+
+use crate::downloader::probe::{self, sanitize_filename};
+use crate::downloader::state::{load_task_list, save_task_list, Sidecar, SidecarMeta, CHUNK_SIZE};
+use crate::downloader::types::{
+    PersistedTask, ProbeResult, Settings, TaskEvent, TaskSnapshot, TaskStatus,
+};
+
+const MAX_CHUNK_RETRIES: u32 = 10;
+const MAX_SINGLE_RETRIES: u32 = 8;
+const METER_INTERVAL: Duration = Duration::from_millis(500);
+
+pub struct TaskShared {
+    pub id: String,
+    pub meta: RwLock<TaskMeta>,
+    pub status: RwLock<TaskStatus>,
+    pub error: RwLock<Option<String>>,
+    pub downloaded: AtomicU64,
+    pub speed_bps: RwLock<f64>,
+    pub eta_secs: RwLock<Option<u64>>,
+    pub active_conns: AtomicU32,
+    pub pause_flag: AtomicBool,
+    pub cancel_flag: AtomicBool,
+    pub error_flag: AtomicBool,
+}
+
+impl TaskShared {
+    pub fn snapshot(&self) -> TaskSnapshot {
+        let meta = self.meta.read().unwrap();
+        TaskSnapshot {
+            id: self.id.clone(),
+            url: meta.url.clone(),
+            filename: meta.filename.clone(),
+            save_path: meta.save_path.clone(),
+            total_size: meta.total_size,
+            downloaded: self.downloaded.load(Ordering::Relaxed),
+            speed_bps: *self.speed_bps.read().unwrap(),
+            eta_seconds: *self.eta_secs.read().unwrap(),
+            connections: meta.connections,
+            status: *self.status.read().unwrap(),
+            error: self.error.read().unwrap().clone(),
+            created_at: meta.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskMeta {
+    url: String,
+    filename: String,
+    save_path: String,
+    total_size: u64,
+    accept_ranges: bool,
+    etag: Option<String>,
+    last_modified: Option<String>,
+    connections: u32,
+    created_at: i64,
+}
+
+/// worker 的退出原因
+#[derive(Debug)]
+enum Flow {
+    Ok,
+    Interrupted, // 暂停/取消，静默退出
+    Fatal(String),
+}
+
+pub struct Inner {
+    app: OnceLock<AppHandle>,
+    tasks: Mutex<HashMap<String, Arc<TaskShared>>>,
+    order: Mutex<Vec<String>>,
+    running: AtomicU32,
+    settings: RwLock<Settings>,
+    tasks_json: OnceLock<PathBuf>,
+    settings_json: OnceLock<PathBuf>,
+}
+
+/// 供 Tauri manage 的句柄；内部 Arc 以便 spawn 'static 任务
+pub struct TaskManager {
+    pub inner: Arc<Inner>,
+}
+
+impl TaskManager {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                app: OnceLock::new(),
+                tasks: Mutex::new(HashMap::new()),
+                order: Mutex::new(Vec::new()),
+                running: AtomicU32::new(0),
+                settings: RwLock::new(Settings::default()),
+                tasks_json: OnceLock::new(),
+                settings_json: OnceLock::new(),
+            }),
+        }
+    }
+}
+
+impl Inner {
+    // ---------- 初始化 ----------
+
+    pub fn set_app(&self, app: AppHandle) {
+        let _ = self.app.set(app.clone());
+        let data_dir = app
+            .path()
+            .app_data_dir()
+            .unwrap_or_else(|_| PathBuf::from("."));
+        let _ = self.tasks_json.set(data_dir.join("tasks.json"));
+        let cfg_dir = app
+            .path()
+            .app_config_dir()
+            .unwrap_or_else(|_| data_dir.clone());
+        let _ = self.settings_json.set(cfg_dir.join("settings.json"));
+
+        let mut settings = self
+            .settings_json
+            .get()
+            .and_then(|p| std::fs::read(p).ok())
+            .and_then(|d| serde_json::from_slice::<Settings>(&d).ok())
+            .unwrap_or_default();
+        if settings.download_dir.is_empty() {
+            settings.download_dir = default_download_dir(&app);
+        }
+        *self.settings.write().unwrap() = settings;
+        self.persist_settings();
+
+        self.load_persisted();
+        self.emit_list();
+    }
+
+    pub fn persist_settings(&self) {
+        if let Some(p) = self.settings_json.get() {
+            if let Some(parent) = p.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Ok(json) = serde_json::to_vec_pretty(&*self.settings.read().unwrap()) {
+                let _ = std::fs::write(p, json);
+            }
+        }
+    }
+
+    /// 应用启动：读取 tasks.json；被中断的任务标记为可续传的 Paused
+    fn load_persisted(&self) {
+        let Some(path) = self.tasks_json.get() else { return };
+        let list = load_task_list(path);
+        if list.is_empty() {
+            return;
+        }
+        let mut tasks = self.tasks.lock().unwrap();
+        let mut order = self.order.lock().unwrap();
+        for p in list {
+            let status = match p.status {
+                TaskStatus::Downloading | TaskStatus::Queued | TaskStatus::Merging => {
+                    TaskStatus::Paused
+                }
+                s => s,
+            };
+            let shared = Arc::new(TaskShared {
+                id: p.id.clone(),
+                meta: RwLock::new(TaskMeta {
+                    url: p.url,
+                    filename: p.filename,
+                    save_path: p.save_path,
+                    total_size: p.total_size,
+                    accept_ranges: p.accept_ranges,
+                    etag: p.etag,
+                    last_modified: p.last_modified,
+                    connections: p.connections,
+                    created_at: p.created_at,
+                }),
+                status: RwLock::new(status),
+                error: RwLock::new(p.error),
+                downloaded: AtomicU64::new(0),
+                speed_bps: RwLock::new(0.0),
+                eta_secs: RwLock::new(None),
+                active_conns: AtomicU32::new(0),
+                pause_flag: AtomicBool::new(false),
+                cancel_flag: AtomicBool::new(false),
+                error_flag: AtomicBool::new(false),
+            });
+            let sidecar = Sidecar::from_save_path(Path::new(&shared.meta.read().unwrap().save_path));
+            shared
+                .downloaded
+                .store(sidecar.sum_parts(), Ordering::Relaxed);
+            order.push(shared.id.clone());
+            tasks.insert(shared.id.clone(), shared);
+        }
+    }
+
+    fn persist(&self) {
+        let Some(path) = self.tasks_json.get() else { return };
+        let list: Vec<PersistedTask> = {
+            let tasks = self.tasks.lock().unwrap();
+            let order = self.order.lock().unwrap();
+            order
+                .iter()
+                .filter_map(|id| tasks.get(id))
+                .map(|s| {
+                    let meta = s.meta.read().unwrap();
+                    PersistedTask {
+                        id: s.id.clone(),
+                        url: meta.url.clone(),
+                        filename: meta.filename.clone(),
+                        save_path: meta.save_path.clone(),
+                        total_size: meta.total_size,
+                        connections: meta.connections,
+                        accept_ranges: meta.accept_ranges,
+                        etag: meta.etag.clone(),
+                        last_modified: meta.last_modified.clone(),
+                        status: *s.status.read().unwrap(),
+                        error: s.error.read().unwrap().clone(),
+                        created_at: meta.created_at,
+                    }
+                })
+                .collect()
+        };
+        let path = path.clone();
+        tokio::task::spawn_blocking(move || save_task_list(&path, &list));
+    }
+
+    fn emit_list(&self) {
+        if let Some(app) = self.app.get() {
+            let _ = app.emit("task://events", TaskEvent::List { tasks: self.snapshots() });
+        }
+    }
+
+    fn emit_progress(&self, id: &str) {
+        if let Some(app) = self.app.get() {
+            if let Some(s) = self.tasks.lock().unwrap().get(id) {
+                let _ = app.emit("task://events", TaskEvent::Progress { task: s.snapshot() });
+            }
+        }
+    }
+
+    // ---------- 查询 ----------
+
+    pub fn snapshots(&self) -> Vec<TaskSnapshot> {
+        let order = self.order.lock().unwrap();
+        let tasks = self.tasks.lock().unwrap();
+        order
+            .iter()
+            .filter_map(|id| tasks.get(id))
+            .map(|s| s.snapshot())
+            .collect()
+    }
+
+    pub fn settings(&self) -> Settings {
+        self.settings.read().unwrap().clone()
+    }
+
+    pub fn update_settings(&self, s: Settings) -> Settings {
+        *self.settings.write().unwrap() = s;
+        self.persist_settings();
+        self.settings()
+    }
+
+    // ---------- 任务操作 ----------
+
+    pub async fn probe_url(&self, url: &str) -> Result<ProbeResult, String> {
+        let client = probe::client();
+        let info = probe::probe(&client, url).await?;
+        Ok(ProbeResult {
+            url: url.to_string(),
+            filename: info.filename.unwrap_or_else(|| fallback_filename(url)),
+            total_size: info.total_size.unwrap_or(0),
+            accept_ranges: info.accept_ranges,
+        })
+    }
+
+    pub async fn add_task(
+        self: &Arc<Self>,
+        url: String,
+        filename: Option<String>,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<TaskSnapshot, String> {
+        let settings = self.settings();
+        let client = probe::client();
+        let info = probe::probe(&client, &url).await?;
+
+        let name = sanitize_name(
+            filename
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .or(info.filename.clone()),
+        )
+        .unwrap_or_else(|| fallback_filename(&url));
+
+        let dir_path = PathBuf::from(
+            dir.filter(|d| !d.trim().is_empty()).unwrap_or(settings.download_dir),
+        );
+        std::fs::create_dir_all(&dir_path).map_err(|e| format!("创建目录失败: {e}"))?;
+        let save_path = unique_save_path(&dir_path, &name);
+
+        let sidecar = Sidecar::from_save_path(&save_path);
+        sidecar.create().map_err(|e| e.to_string())?;
+        sidecar
+            .write_meta(&SidecarMeta {
+                version: 1,
+                url: url.clone(),
+                save_path: save_path.to_string_lossy().into_owned(),
+                filename: name.clone(),
+                total_size: info.total_size.unwrap_or(0),
+                accept_ranges: info.accept_ranges,
+                etag: info.etag.clone(),
+                last_modified: info.last_modified.clone(),
+                chunk_size: CHUNK_SIZE,
+            })
+            .map_err(|e| e.to_string())?;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let conns = connections
+            .unwrap_or(settings.max_connections)
+            .clamp(1, 64);
+        let shared = Arc::new(TaskShared {
+            id: id.clone(),
+            meta: RwLock::new(TaskMeta {
+                url: url.clone(),
+                filename: name,
+                save_path: save_path.to_string_lossy().into_owned(),
+                total_size: info.total_size.unwrap_or(0),
+                accept_ranges: info.accept_ranges,
+                etag: info.etag,
+                last_modified: info.last_modified,
+                connections: conns,
+                created_at: now_ms(),
+            }),
+            status: RwLock::new(TaskStatus::Queued),
+            error: RwLock::new(None),
+            downloaded: AtomicU64::new(0),
+            speed_bps: RwLock::new(0.0),
+            eta_secs: RwLock::new(None),
+            active_conns: AtomicU32::new(0),
+            pause_flag: AtomicBool::new(false),
+            cancel_flag: AtomicBool::new(false),
+            error_flag: AtomicBool::new(false),
+        });
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let mut order = self.order.lock().unwrap();
+            tasks.insert(id.clone(), shared);
+            order.push(id.clone());
+        }
+        self.persist();
+        self.emit_list();
+        self.dispatch();
+        Ok(self
+            .tasks
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|s| s.snapshot())
+            .expect("task just added"))
+    }
+
+    /// 有空位就启动排队中的任务
+    pub fn dispatch(self: &Arc<Self>) {
+        let max = self.settings.read().unwrap().max_concurrent_tasks.max(1);
+        let running = self.running.load(Ordering::Relaxed);
+        if running >= max {
+            return;
+        }
+        let to_start: Vec<String> = {
+            let order = self.order.lock().unwrap();
+            let tasks = self.tasks.lock().unwrap();
+            order
+                .iter()
+                .filter(|id| {
+                    tasks
+                        .get(*id)
+                        .map(|s| *s.status.read().unwrap() == TaskStatus::Queued)
+                        .unwrap_or(false)
+                })
+                .take((max - running) as usize)
+                .cloned()
+                .collect()
+        };
+        for id in to_start {
+            self.start_task(id);
+        }
+    }
+
+    fn start_task(self: &Arc<Self>, id: String) {
+        let Some(shared) = self.tasks.lock().unwrap().get(&id).cloned() else {
+            return;
+        };
+        *shared.status.write().unwrap() = TaskStatus::Downloading;
+        shared.error_flag.store(false, Ordering::Relaxed);
+        shared.pause_flag.store(false, Ordering::Relaxed);
+        shared.error.write().unwrap().take();
+        *shared.speed_bps.write().unwrap() = 0.0;
+        self.running.fetch_add(1, Ordering::Relaxed);
+        self.emit_progress(&id);
+        self.persist();
+
+        let inner = self.clone();
+        tauri::async_runtime::spawn(async move {
+            run_task(inner, id, shared).await;
+        });
+    }
+
+    pub async fn pause_task(&self, id: &str) -> Result<(), String> {
+        let Some(shared) = self.tasks.lock().unwrap().get(id).cloned() else {
+            return Err("任务不存在".into());
+        };
+        match *shared.status.read().unwrap() {
+            TaskStatus::Queued => {
+                *shared.status.write().unwrap() = TaskStatus::Paused;
+                self.emit_progress(id);
+                self.persist();
+            }
+            TaskStatus::Downloading => {
+                shared.pause_flag.store(true, Ordering::Relaxed);
+                // run_task 结束时会转为 Paused
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub async fn resume_task(self: &Arc<Self>, id: &str) -> Result<(), String> {
+        let Some(shared) = self.tasks.lock().unwrap().get(id).cloned() else {
+            return Err("任务不存在".into());
+        };
+        match *shared.status.read().unwrap() {
+            TaskStatus::Paused | TaskStatus::Failed => {
+                *shared.status.write().unwrap() = TaskStatus::Queued;
+                shared.error.write().unwrap().take();
+                shared.error_flag.store(false, Ordering::Relaxed);
+                shared.pause_flag.store(false, Ordering::Relaxed);
+                self.emit_progress(id);
+                self.persist();
+                self.dispatch();
+                Ok(())
+            }
+            _ => Err("任务状态不支持继续".into()),
+        }
+    }
+
+    pub async fn delete_task(&self, id: &str, delete_file: bool) -> Result<(), String> {
+        let (shared, save_path, status) = {
+            let mut tasks = self.tasks.lock().unwrap();
+            let shared = tasks.remove(id).ok_or("任务不存在")?;
+            {
+                let mut order = self.order.lock().unwrap();
+                order.retain(|x| x != id);
+            }
+            let save_path = shared.meta.read().unwrap().save_path.clone();
+            let status = *shared.status.read().unwrap();
+            (shared, save_path, status)
+        };
+        shared.cancel_flag.store(true, Ordering::Relaxed);
+
+        if status == TaskStatus::Downloading || status == TaskStatus::Merging {
+            // 运行中的任务由 run_task 在退出后清理 sidecar
+            if delete_file && status == TaskStatus::Merging {
+                let _ = std::fs::remove_file(&save_path);
+            }
+        } else {
+            Sidecar::from_save_path(Path::new(&save_path)).remove();
+            if delete_file && status == TaskStatus::Completed {
+                let _ = std::fs::remove_file(&save_path);
+            }
+        }
+        self.persist();
+        self.emit_list();
+        Ok(())
+    }
+}
+
+// ---------- 运行循环 ----------
+
+async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
+    let mut meta = shared.meta.read().unwrap().clone();
+    let sidecar = Sidecar::from_save_path(Path::new(&meta.save_path));
+
+    // 校验/恢复：重探测确认远端文件未变化
+    if meta.accept_ranges {
+        let client = probe::client();
+        if let Some(info) = probe::range_probe(&client, &meta.url).await {
+            let changed = info.total_size.is_some_and(|t| t != meta.total_size)
+                || both_present_diff(&info.etag, &meta.etag);
+            if changed {
+                // 远端文件已变化：重置分片并更新元数据
+                sidecar.remove();
+                let _ = sidecar.create();
+                meta.total_size = info.total_size.unwrap_or(0);
+                meta.accept_ranges = info.accept_ranges;
+                meta.etag = info.etag.clone();
+                meta.last_modified = info.last_modified.clone();
+                *shared.meta.write().unwrap() = meta.clone();
+                let _ = sidecar.write_meta(&SidecarMeta {
+                    version: 1,
+                    url: meta.url.clone(),
+                    save_path: meta.save_path.clone(),
+                    filename: meta.filename.clone(),
+                    total_size: meta.total_size,
+                    accept_ranges: meta.accept_ranges,
+                    etag: meta.etag.clone(),
+                    last_modified: meta.last_modified.clone(),
+                    chunk_size: CHUNK_SIZE,
+                });
+            }
+        }
+    }
+
+    shared
+        .downloaded
+        .store(sidecar.sum_parts(), Ordering::Relaxed);
+
+    let meter_id = id.clone();
+    let meter_shared = shared.clone();
+    let meter = tauri::async_runtime::spawn(async move {
+        run_meter(meter_id, meter_shared).await;
+    });
+
+    let result = if !meta.accept_ranges || meta.total_size == 0 {
+        run_single(&shared, &sidecar, &meta).await
+    } else {
+        run_parallel(&shared, &sidecar, &meta).await
+    };
+
+    shared.active_conns.store(0, Ordering::Relaxed);
+    meter.abort();
+
+    let cancel = shared.cancel_flag.load(Ordering::Relaxed);
+    if cancel {
+        // 已被 delete_task 移出 map：清理 sidecar 后直接退出
+        sidecar.remove();
+        inner.running.fetch_sub(1, Ordering::Relaxed);
+        inner.dispatch();
+        return;
+    }
+
+    match result {
+        Flow::Ok => {
+            *shared.status.write().unwrap() = TaskStatus::Merging;
+            inner.emit_progress(&id);
+
+            let save_path = meta.save_path.clone();
+            let parts_dir = sidecar.parts_dir.clone();
+            let total = meta.total_size;
+            let single = !meta.accept_ranges;
+            let merge = tokio::task::spawn_blocking(move || {
+                merge_parts(&parts_dir, &save_path, total, single)
+            });
+            match merge.await {
+                Ok(Ok(())) => {
+                    sidecar.remove();
+                    *shared.status.write().unwrap() = TaskStatus::Completed;
+                    shared.eta_secs.write().unwrap().take();
+                    *shared.speed_bps.write().unwrap() = 0.0;
+                    if meta.total_size > 0 {
+                        shared.downloaded.store(meta.total_size, Ordering::Relaxed);
+                    }
+                }
+                Ok(Err(e)) => {
+                    *shared.status.write().unwrap() = TaskStatus::Failed;
+                    *shared.error.write().unwrap() = Some(format!("合并失败: {e}"));
+                }
+                Err(e) => {
+                    *shared.status.write().unwrap() = TaskStatus::Failed;
+                    *shared.error.write().unwrap() = Some(e.to_string());
+                }
+            }
+        }
+        Flow::Interrupted => {
+            *shared.status.write().unwrap() = TaskStatus::Paused;
+        }
+        Flow::Fatal(e) => {
+            *shared.status.write().unwrap() = TaskStatus::Failed;
+            *shared.error.write().unwrap() = Some(e);
+        }
+    }
+
+    *shared.speed_bps.write().unwrap() = 0.0;
+    inner.running.fetch_sub(1, Ordering::Relaxed);
+    inner.emit_progress(&id);
+    inner.persist();
+    inner.dispatch();
+}
+
+/// 速度计量 + 进度事件推送
+async fn run_meter(id: String, shared: Arc<TaskShared>) {
+    let mut prev = shared.downloaded.load(Ordering::Relaxed);
+    let mut ema = 0.0f64;
+    let mut first = true;
+    loop {
+        tokio::time::sleep(METER_INTERVAL).await;
+        let status = *shared.status.read().unwrap();
+        if status != TaskStatus::Downloading {
+            break;
+        }
+        let cur = shared.downloaded.load(Ordering::Relaxed);
+        let delta = cur.saturating_sub(prev);
+        prev = cur;
+        let raw = delta as f64 / METER_INTERVAL.as_secs_f64();
+        ema = if first { raw } else { ema * 0.65 + raw * 0.35 };
+        first = false;
+        *shared.speed_bps.write().unwrap() = ema;
+        *shared.eta_secs.write().unwrap() = {
+            let total = shared.meta.read().unwrap().total_size;
+            if total > 0 && ema > 1.0 {
+                Some(((total - cur.min(total)) as f64 / ema) as u64)
+            } else {
+                None
+            }
+        };
+        if let Some(app) = APP.get() {
+            let _ = app.emit("task://events", TaskEvent::Progress { task: shared.snapshot() });
+        }
+        let _ = &id; // 保留参数以备日志
+    }
+}
+
+static APP: OnceLock<AppHandle> = OnceLock::new();
+pub fn set_app_handle(app: AppHandle) {
+    let _ = APP.set(app);
+}
+
+/// 并行多连接下载
+async fn run_parallel(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta) -> Flow {
+    let total = meta.total_size;
+    let chunk_size = CHUNK_SIZE;
+    let chunk_count = total.div_ceil(chunk_size) as u32;
+
+    let mut queue = VecDeque::new();
+    for idx in 0..chunk_count {
+        let expected = chunk_len(idx, chunk_size, total);
+        if sidecar.part_size(idx) < expected {
+            queue.push_back(idx);
+        }
+    }
+    let queue = Arc::new(Mutex::new(queue));
+    let workers = (meta.connections.clamp(1, 64) as usize).min(chunk_count.max(1) as usize);
+    shared.active_conns.store(workers as u32, Ordering::Relaxed);
+
+    let client = probe::client();
+    let mut joins = Vec::new();
+    for _ in 0..workers {
+        let queue = queue.clone();
+        let shared = shared.clone();
+        let parts_dir = sidecar.parts_dir.clone();
+        let client = client.clone();
+        let url = meta.url.clone();
+        joins.push(tauri::async_runtime::spawn(async move {
+            loop {
+                if shared.pause_flag.load(Ordering::Relaxed)
+                    || shared.cancel_flag.load(Ordering::Relaxed)
+                    || shared.error_flag.load(Ordering::Relaxed)
+                {
+                    return;
+                }
+                let idx = {
+                    let mut q = queue.lock().unwrap();
+                    match q.pop_front() {
+                        Some(i) => i,
+                        None => return, // 队列空 → 干完收工
+                    }
+                };
+                let start = idx as u64 * chunk_size;
+                let end = start + chunk_len(idx, chunk_size, total) - 1;
+                let part = parts_dir.join(format!("part_{idx:06}"));
+                match download_chunk(&client, &url, &part, start, end, &shared).await {
+                    Ok(()) => continue,
+                    Err(Flow::Ok) => continue, // 不可能出现，补全分支
+                    Err(Flow::Interrupted) => return,
+                    Err(Flow::Fatal(e)) => {
+                        shared.error_flag.store(true, Ordering::Relaxed);
+                        *shared.error.write().unwrap() = Some(e);
+                        return;
+                    }
+                }
+            }
+        }));
+    }
+    for j in joins {
+        let _ = j.await;
+    }
+
+    if shared.error_flag.load(Ordering::Relaxed) {
+        return Flow::Fatal(shared.error.read().unwrap().clone().unwrap_or_default());
+    }
+    if shared.cancel_flag.load(Ordering::Relaxed) {
+        return Flow::Interrupted;
+    }
+    Flow::Ok
+}
+
+/// 单连接下载（不支持 Range 或大小未知）
+async fn run_single(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta) -> Flow {
+    sidecar.remove();
+    let _ = sidecar.create();
+    shared.active_conns.store(1, Ordering::Relaxed);
+
+    let client = probe::client();
+    let part = sidecar.part_file(0);
+    let shared2 = shared.clone();
+    match download_single(&client, &meta.url, &part, &shared2).await {
+        Ok(()) => Flow::Ok,
+        Err(e) => e,
+    }
+}
+
+/// 下载单个分片（追加到 part 文件，重试时从断点继续）
+async fn download_chunk(
+    client: &reqwest::Client,
+    url: &str,
+    part: &Path,
+    start: u64,
+    end: u64,
+    shared: &TaskShared,
+) -> Result<(), Flow> {
+    let expected = end - start + 1;
+    for attempt in 0..MAX_CHUNK_RETRIES {
+        if shared.pause_flag.load(Ordering::Relaxed)
+            || shared.cancel_flag.load(Ordering::Relaxed)
+            || shared.error_flag.load(Ordering::Relaxed)
+        {
+            return Err(Flow::Interrupted);
+        }
+        let written = part_size(part);
+        if written >= expected {
+            return Ok(());
+        }
+
+        let range = format!("bytes={}-{}", start + written, end);
+        let resp = client.get(url).header(RANGE, range).send().await;
+
+        match resp {
+            Ok(r) if r.status() == StatusCode::PARTIAL_CONTENT => {
+                let finished = stream_response(r, part, written, expected, shared, None).await?;
+                if finished {
+                    return Ok(());
+                }
+                // 流提前结束（服务器断开/超时）：保留断点，退避重试
+                backoff(attempt).await;
+            }
+            Ok(r) if r.status().is_success() => {
+                // 服务器忽略 Range 返回 200：只能从头读，按 offset 跳过
+                let skip = start + written;
+                if written > 0 {
+                    let _ = std::fs::remove_file(part);
+                }
+                let finished = stream_response(r, part, 0, expected, shared, Some(skip)).await?;
+                if finished {
+                    return Ok(());
+                }
+                backoff(attempt).await;
+            }
+            Ok(r) => {
+                // 4xx/5xx：退避重试
+                let status = r.status();
+                if status.as_u16() == 416 {
+                    // 越界，视为完成
+                    return Ok(());
+                }
+                backoff(attempt).await;
+            }
+            Err(_) => backoff(attempt).await,
+        }
+    }
+    Err(Flow::Fatal("重试次数已达上限，连接持续失败".into()))
+}
+
+/// 单连接整文件下载（无 Range）
+async fn download_single(
+    client: &reqwest::Client,
+    url: &str,
+    part: &Path,
+    shared: &TaskShared,
+) -> Result<(), Flow> {
+    let mut attempt = 0u32;
+    loop {
+        if shared.pause_flag.load(Ordering::Relaxed)
+            || shared.cancel_flag.load(Ordering::Relaxed)
+            || shared.error_flag.load(Ordering::Relaxed)
+        {
+            return Err(Flow::Interrupted);
+        }
+        match client.get(url).send().await {
+            Ok(r) if r.status().is_success() => {
+                let _ = std::fs::remove_file(part);
+                if stream_response(r, part, 0, 0, shared, None).await? {
+                    return Ok(());
+                }
+                // 流提前结束：重试
+                backoff(attempt.min(MAX_SINGLE_RETRIES - 1)).await;
+                attempt += 1;
+                if attempt >= MAX_SINGLE_RETRIES {
+                    return Err(Flow::Fatal("连接中断，重试次数已达上限".into()));
+                }
+            }
+            Ok(r) => {
+                backoff(attempt.min(MAX_SINGLE_RETRIES - 1)).await;
+                attempt += 1;
+                if attempt >= MAX_SINGLE_RETRIES {
+                    return Err(Flow::Fatal(format!("服务器返回 {}", r.status())));
+                }
+            }
+            Err(e) => {
+                backoff(attempt.min(MAX_SINGLE_RETRIES - 1)).await;
+                attempt += 1;
+                if attempt >= MAX_SINGLE_RETRIES {
+                    return Err(Flow::Fatal(format!("连接失败: {e}")));
+                }
+            }
+        }
+    }
+}
+
+/// 流式写盘。返回 Ok(true) 表示该分片已完成；Ok(false) 表示流提前结束需重试。
+/// skip_offset: 服务器忽略 Range 时需跳过的字节数。
+async fn stream_response(
+    resp: reqwest::Response,
+    part: &Path,
+    written: u64,
+    expected: u64,
+    shared: &TaskShared,
+    skip_offset: Option<u64>,
+) -> Result<bool, Flow> {
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(part)
+        .await
+        .map_err(|e| Flow::Fatal(format!("写入文件失败: {e}")))?;
+        let mut skip = skip_offset.unwrap_or(0);
+        let mut done = written;
+
+        let mut stream = resp.bytes_stream();
+        while let Some(item) = stream.next().await {
+            let bytes = match item {
+                Ok(b) => b,
+                Err(_) => {
+                    // 网络中断/超时：保留已写数据，返回 false 让上层从断点重试
+                    let _ = file.flush().await;
+                    return Ok(false);
+                }
+            };
+        let mut data: &[u8] = &bytes;
+        if skip > 0 {
+            if data.len() as u64 <= skip {
+                skip -= data.len() as u64;
+                continue;
+            }
+            data = &data[skip as usize..];
+            skip = 0;
+        }
+        if data.is_empty() {
+            continue;
+        }
+        file.write_all(data)
+            .await
+            .map_err(|e| Flow::Fatal(format!("写入文件失败: {e}")))?;
+        done += data.len() as u64;
+        shared.downloaded.fetch_add(data.len() as u64, Ordering::Relaxed);
+
+        if shared.pause_flag.load(Ordering::Relaxed)
+            || shared.cancel_flag.load(Ordering::Relaxed)
+        {
+            let _ = file.flush().await;
+            return Err(Flow::Interrupted);
+        }
+        if expected > 0 && done >= expected {
+            let _ = file.flush().await;
+            // 多写了几字节（200 全量响应越过 end）时截断
+            let overshoot = done - expected;
+            if overshoot > 0 {
+                truncate_file(part, done - overshoot).await;
+                shared.downloaded.fetch_sub(overshoot, Ordering::Relaxed);
+            }
+            return Ok(true);
+        }
+    }
+    let _ = file.flush().await;
+    if expected > 0 && done >= expected {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+async fn truncate_file(path: &Path, size: u64) {
+    let f = match tokio::fs::OpenOptions::new().write(true).open(path).await {
+        Ok(f) => f,
+        Err(_) => return,
+    };
+    let _ = f.set_len(size);
+}
+
+async fn backoff(attempt: u32) {
+    let secs = std::cmp::min(1u64 << attempt.min(6), 30);
+    tokio::time::sleep(Duration::from_secs(secs)).await;
+}
+
+fn part_size(path: &Path) -> u64 {
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+}
+
+/// 分片 idx 的实际长度
+fn chunk_len(idx: u32, chunk_size: u64, total: u64) -> u64 {
+    let start = idx as u64 * chunk_size;
+    total.saturating_sub(start).min(chunk_size)
+}
+
+/// 合并分片到最终文件并校验大小。single_unknown: 单连接且大小未知（直接改名）。
+fn merge_parts(parts_dir: &Path, save_path: &str, total: u64, single_unknown: bool) -> Result<(), String> {
+    let out = Path::new(save_path);
+    if single_unknown {
+        let only = parts_dir.join("part_000000");
+        if std::fs::rename(&only, out).is_ok() {
+            return Ok(());
+        }
+        // 某些平台 rename 跨目录失败则走复制
+        std::fs::copy(&only, out).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    let tmp = out.with_extension("feiliu-merge.tmp");
+    let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut written: u64 = 0;
+    let mut idx = 0u32;
+    loop {
+        let part = parts_dir.join(format!("part_{idx:06}"));
+        if !part.exists() {
+            break;
+        }
+        let n = std::io::copy(
+            &mut std::fs::File::open(&part).map_err(|e| e.to_string())?,
+            &mut file,
+        )
+        .map_err(|e| e.to_string())?;
+        written += n;
+        idx += 1;
+    }
+    if total > 0 && written != total {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("分片合计 {written} 字节，与服务器报告的 {total} 字节不符"));
+    }
+    drop(file);
+    std::fs::rename(&tmp, out).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------- 命名与工具 ----------
+
+fn sanitize_name(name: Option<String>) -> Option<String> {
+    let name = name?;
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    sanitize_filename(name)
+}
+
+fn fallback_filename(url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let seg = path.rsplit('/').next().unwrap_or("");
+    if !seg.is_empty() {
+        if let Some(f) = sanitize_filename(&percent_decode(seg)) {
+            return f;
+        }
+    }
+    format!("download_{}", now_ms())
+}
+
+fn percent_decode(s: &str) -> String {
+    percent_encoding::percent_decode_str(s)
+        .decode_utf8_lossy()
+        .into_owned()
+}
+
+fn unique_save_path(dir: &Path, filename: &str) -> PathBuf {
+    let mut candidate = dir.join(filename);
+    if !candidate.exists()
+        && !Sidecar::from_save_path(&candidate).dir.exists()
+    {
+        return candidate;
+    }
+    let stem = Path::new(filename)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| filename.to_string());
+    let ext = Path::new(filename)
+        .extension()
+        .map(|s| format!(".{}", s.to_string_lossy()))
+        .unwrap_or_default();
+    for n in 1..10000u32 {
+        candidate = dir.join(format!("{stem} ({n}){ext}"));
+        if !candidate.exists() && !Sidecar::from_save_path(&candidate).dir.exists() {
+            return candidate;
+        }
+    }
+    dir.join(format!("{stem}_{}{ext}", now_ms()))
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn both_present_diff(a: &Option<String>, b: &Option<String>) -> bool {
+    matches!((a, b), (Some(x), Some(y)) if x != y)
+}
+
+fn default_download_dir(app: &AppHandle) -> String {
+    if cfg!(any(target_os = "ios", target_os = "android")) {
+        if let Ok(p) = app.path().app_data_dir() {
+            return p.join("Downloads").to_string_lossy().into_owned();
+        }
+    }
+    dirs::download_dir()
+        .or_else(|| dirs::home_dir())
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+// ---------- 单元测试 ----------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunk_len() {
+        let cs = 8 * 1024 * 1024;
+        assert_eq!(chunk_len(0, cs, 100), 100);
+        assert_eq!(chunk_len(1, cs, cs * 2 + 5), cs); // idx1 在范围内
+        assert_eq!(chunk_len(2, cs, cs * 2 + 5), 5);
+        assert_eq!(chunk_len(3, cs, cs * 2 + 5), 0); // 越界为 0（不会入队）
+    }
+
+    #[test]
+    fn test_unique_save_path() {
+        let dir = std::env::temp_dir().join(format!("feiliu_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let p1 = unique_save_path(&dir, "a.mp4");
+        std::fs::write(&p1, b"x").unwrap();
+        let p2 = unique_save_path(&dir, "a.mp4");
+        assert_ne!(p1, p2);
+        assert!(p2.to_string_lossy().contains("(1)"));
+        let p3 = unique_save_path(&dir, "b.mp4");
+        assert!(p3.ends_with("b.mp4"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_both_present_diff() {
+        assert!(both_present_diff(&Some("a".into()), &Some("b".into())));
+        assert!(!both_present_diff(&Some("a".into()), &Some("a".into())));
+        assert!(!both_present_diff(&Some("a".into()), &None));
+    }
+
+    /// 真实网络下载链路测试（Range 分片下载 → 合并校验）。
+    /// 需要设置 FEILIU_NET_TEST=1 才会执行，避免 CI/离线环境失败。
+    #[tokio::test]
+    async fn test_real_range_download_and_merge() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("feiliu_net_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let client = probe::client();
+        // 之前验证过的 CDN 直链（支持 Range，1GB）
+        let url = "https://d1.xia12345.com/video/202608/6a6ed872be30072b672b4fe8/720.mp4";
+        let shared = Arc::new(TaskShared {
+            id: "test".into(),
+            meta: RwLock::new(TaskMeta {
+                url: url.into(),
+                filename: "test.mp4".into(),
+                save_path: dir.join("out.mp4").to_string_lossy().into_owned(),
+                total_size: 1_002_897_303,
+                accept_ranges: true,
+                etag: None,
+                last_modified: None,
+                connections: 2,
+                created_at: now_ms(),
+            }),
+            status: RwLock::new(TaskStatus::Downloading),
+            error: RwLock::new(None),
+            downloaded: AtomicU64::new(0),
+            speed_bps: RwLock::new(0.0),
+            eta_secs: RwLock::new(None),
+            active_conns: AtomicU32::new(0),
+            pause_flag: AtomicBool::new(false),
+            cancel_flag: AtomicBool::new(false),
+            error_flag: AtomicBool::new(false),
+        });
+
+        let mb = 1024 * 1024u64;
+        let p0 = dir.join("part_000000");
+        let p1 = dir.join("part_000001");
+        download_chunk(&client, url, &p0, 0, mb - 1, &shared).await.unwrap();
+        download_chunk(&client, url, &p1, mb, 2 * mb - 1, &shared).await.unwrap();
+        assert_eq!(part_size(&p0), mb);
+        assert_eq!(part_size(&p1), mb);
+
+        let out = dir.join("out.mp4");
+        merge_parts(&dir, out.to_str().unwrap(), 2 * mb, false).unwrap();
+        assert_eq!(part_size(&out), 2 * mb);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

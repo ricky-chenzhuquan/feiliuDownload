@@ -1,0 +1,60 @@
+name: Build Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            targets: aarch64-apple-darwin
+            bundle-glob: "*.dmg"
+          - os: windows-latest
+            targets: ""
+            bundle-glob: "*.{msi,exe}"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install frontend deps
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        working-directory: app
+        run: pnpm tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: feiliu-${{ matrix.os }}
+          path: |
+            app/src-tauri/target/release/bundle/dmg/${{ matrix.bundle-glob }}
+            app/src-tauri/target/release/bundle/msi/${{ matrix.bundle-glob }}
+            app/src-tauri/target/release/bundle/nsis/${{ matrix.bundle-glob }}
+          if-no-files-found: ignore
