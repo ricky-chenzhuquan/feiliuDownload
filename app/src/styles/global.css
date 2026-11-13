@@ -617,6 +617,13 @@ select {
   background-position: right 12px center;
 }
 
+.mirror-input {
+  resize: vertical;
+  min-height: 44px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .probe-hint {
   color: var(--text-dim);
   font-size: 13px;

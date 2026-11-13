@@ -23,6 +23,7 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
   const [probeError, setProbeError] = useState<string | null>(null);
   const [filename, setFilename] = useState("");
   const [dir, setDir] = useState("");
+  const [mirrors, setMirrors] = useState("");
   const [connections, setConnections] = useState(16);
   const [submitting, setSubmitting] = useState(false);
   const [mobile, setMobile] = useState(false);
@@ -42,6 +43,7 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
       setProbe(null);
       setProbeError(null);
       setFilename("");
+      setMirrors("");
       setProbing(false);
       setSubmitting(false);
     }
@@ -92,8 +94,13 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
     if (!probe || submitting) return;
     setSubmitting(true);
     try {
+      const mirrorList = mirrors
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => /^https?:\/\/.+/i.test(s) && s !== probe.url);
       await addTask(
         probe.url,
+        mirrorList,
         filename.trim() || undefined,
         dir.trim() || undefined,
         connections,
@@ -175,6 +182,24 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
                   )}
                 </span>
               </div>
+            </div>
+
+            <div className="field">
+              <label>
+                镜像地址（可选，每行一个，多源并行叠加加速）
+                <span className="label-hint">
+                  {mirrors
+                    ? `${mirrors.split("\n").filter((s) => /^https?:\/\/\S+/.test(s.trim()) && s.trim() !== probe.url).length} 个镜像`
+                    : ""}
+                </span>
+              </label>
+              <textarea
+                className="text-input mirror-input"
+                placeholder="同一文件的其它线路/镜像直链，例如另一个 CDN 的地址"
+                rows={2}
+                value={mirrors}
+                onChange={(e) => setMirrors(e.target.value)}
+              />
             </div>
 
             <div className="field">

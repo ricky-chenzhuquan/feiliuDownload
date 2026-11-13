@@ -14,6 +14,8 @@ pub const SIDECAR_SUFFIX: &str = ".feiliu";
 pub struct SidecarMeta {
     pub version: u32,
     pub url: String,
+    #[serde(default)]
+    pub mirrors: Vec<String>,
     pub save_path: String,
     pub filename: String,
     pub total_size: u64,

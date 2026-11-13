@@ -53,6 +53,7 @@ impl TaskShared {
             speed_bps: *self.speed_bps.read().unwrap(),
             eta_seconds: *self.eta_secs.read().unwrap(),
             connections: meta.connections,
+            sources: meta.mirrors.len() + 1,
             status: *self.status.read().unwrap(),
             error: self.error.read().unwrap().clone(),
             created_at: meta.created_at,
@@ -63,6 +64,8 @@ impl TaskShared {
 #[derive(Debug, Clone)]
 pub struct TaskMeta {
     url: String,
+    /// 镜像地址（同一文件的其它线路/CDN），分片在其与主地址间轮询
+    mirrors: Vec<String>,
     filename: String,
     save_path: String,
     total_size: u64,
@@ -197,6 +200,7 @@ impl Inner {
                 id: p.id.clone(),
                 meta: RwLock::new(TaskMeta {
                     url: p.url,
+                    mirrors: p.mirrors,
                     filename: p.filename,
                     save_path: p.save_path,
                     total_size: p.total_size,
@@ -234,12 +238,13 @@ impl Inner {
         order
             .iter()
             .filter_map(|id| tasks.get(id))
-            .map(|s| {
-                let meta = s.meta.read().unwrap();
-                PersistedTask {
-                    id: s.id.clone(),
-                    url: meta.url.clone(),
-                    filename: meta.filename.clone(),
+                .map(|s| {
+                    let meta = s.meta.read().unwrap();
+                    PersistedTask {
+                        id: s.id.clone(),
+                        url: meta.url.clone(),
+                        mirrors: meta.mirrors.clone(),
+                        filename: meta.filename.clone(),
                     save_path: meta.save_path.clone(),
                     total_size: meta.total_size,
                     connections: meta.connections,
@@ -313,6 +318,7 @@ impl Inner {
     pub async fn add_task(
         self: &Arc<Self>,
         url: String,
+        mirrors: Vec<String>,
         filename: Option<String>,
         dir: Option<String>,
         connections: Option<u32>,
@@ -343,6 +349,7 @@ impl Inner {
             .write_meta(&SidecarMeta {
                 version: 1,
                 url: url.clone(),
+                mirrors: mirrors.clone(),
                 save_path: save_path.to_string_lossy().into_owned(),
                 filename: name.clone(),
                 total_size: info.total_size.unwrap_or(0),
@@ -361,6 +368,7 @@ impl Inner {
             id: id.clone(),
             meta: RwLock::new(TaskMeta {
                 url: url.clone(),
+                mirrors: mirrors.clone(),
                 filename: name,
                 save_path: save_path.to_string_lossy().into_owned(),
                 total_size: info.total_size.unwrap_or(0),
@@ -578,6 +586,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                 let _ = sidecar.write_meta(&SidecarMeta {
                     version: 1,
                     url: meta.url.clone(),
+                    mirrors: meta.mirrors.clone(),
                     save_path: meta.save_path.clone(),
                     filename: meta.filename.clone(),
                     total_size: meta.total_size,
@@ -587,6 +596,38 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                     chunk_size: CHUNK_SIZE,
                 });
             }
+        }
+    }
+
+    // 校验镜像：只保留大小与主地址一致的镜像（最多 8 个）
+    if meta.accept_ranges && !meta.mirrors.is_empty() {
+        let client = probe::client();
+        let mut valid = Vec::new();
+        for m in meta.mirrors.iter().take(8) {
+            if m == &meta.url {
+                continue;
+            }
+            if let Some(info) = probe::range_probe(&client, m).await {
+                if info.total_size.map_or(true, |t| t == meta.total_size) {
+                    valid.push(m.clone());
+                }
+            }
+        }
+        if valid.len() != meta.mirrors.len() {
+            meta.mirrors = valid;
+            *shared.meta.write().unwrap() = meta.clone();
+            let _ = sidecar.write_meta(&SidecarMeta {
+                version: 1,
+                url: meta.url.clone(),
+                mirrors: meta.mirrors.clone(),
+                save_path: meta.save_path.clone(),
+                filename: meta.filename.clone(),
+                total_size: meta.total_size,
+                accept_ranges: meta.accept_ranges,
+                etag: meta.etag.clone(),
+                last_modified: meta.last_modified.clone(),
+                chunk_size: CHUNK_SIZE,
+            });
         }
     }
 
@@ -722,13 +763,20 @@ async fn run_parallel(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMe
     shared.active_conns.store(workers as u32, Ordering::Relaxed);
 
     let client = probe::client();
+    // URL 池：主地址 + 镜像，分片轮询（动态队列下快源自然多拿分片）
+    let mut urls = vec![meta.url.clone()];
+    urls.extend(meta.mirrors.iter().cloned());
+    let url_counter = Arc::new(AtomicU64::new(0));
+    let urls = Arc::new(urls);
+
     let mut joins = Vec::new();
     for _ in 0..workers {
         let queue = queue.clone();
         let shared = shared.clone();
         let parts_dir = sidecar.parts_dir.clone();
         let client = client.clone();
-        let url = meta.url.clone();
+        let urls = urls.clone();
+        let url_counter = url_counter.clone();
         joins.push(tauri::async_runtime::spawn(async move {
             loop {
                 if shared.pause_flag.load(Ordering::Relaxed)
@@ -744,6 +792,8 @@ async fn run_parallel(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMe
                         None => return, // 队列空 → 干完收工
                     }
                 };
+                let n = url_counter.fetch_add(1, Ordering::Relaxed) as usize;
+                let url = urls[n % urls.len()].clone();
                 let start = idx as u64 * chunk_size;
                 let end = start + chunk_len(idx, chunk_size, total) - 1;
                 let part = parts_dir.join(format!("part_{idx:06}"));
@@ -1164,6 +1214,7 @@ mod tests {
             id: "test".into(),
             meta: RwLock::new(TaskMeta {
                 url: url.into(),
+                mirrors: vec![],
                 filename: "test.mp4".into(),
                 save_path: dir.join("out.mp4").to_string_lossy().into_owned(),
                 total_size: 1_002_897_303,
@@ -1197,5 +1248,60 @@ mod tests {
         assert_eq!(part_size(&out), 2 * mb);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 多源（镜像）验证：同一文件在两个不同主机上各拉一个分片，
+    /// 验证大小一致后合并。kernel.org 主站 + 镜像站，路径永久有效。
+    #[tokio::test]
+    async fn test_multi_source_mirrors() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let client = probe::client();
+        let p1 = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
+        let p2 = "https://mirrors.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
+        let i1 = probe::range_probe(&client, p1).await.expect("主站探测失败");
+        let i2 = probe::range_probe(&client, p2).await.expect("镜像探测失败");
+        let t1 = i1.total_size.expect("主站无大小");
+        let t2 = i2.total_size.expect("镜像无大小");
+        assert_eq!(t1, t2, "两源大小不一致");
+        assert!(i1.accept_ranges && i2.accept_ranges, "两源都应支持断点");
+
+        let dir = std::env::temp_dir().join(format!("feiliu_mirror_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mb = 1024 * 1024u64;
+        let shared = Arc::new(TaskShared {
+            id: "mirror-test".into(),
+            meta: RwLock::new(TaskMeta {
+                url: p1.into(),
+                mirrors: vec![p2.into()],
+                filename: "test.tar.xz".into(),
+                save_path: dir.join("out.tar.xz").to_string_lossy().into_owned(),
+                total_size: t1,
+                accept_ranges: true,
+                etag: None,
+                last_modified: None,
+                connections: 2,
+                created_at: now_ms(),
+            }),
+            status: RwLock::new(TaskStatus::Downloading),
+            error: RwLock::new(None),
+            downloaded: AtomicU64::new(0),
+            speed_bps: RwLock::new(0.0),
+            eta_secs: RwLock::new(None),
+            active_conns: AtomicU32::new(0),
+            pause_flag: AtomicBool::new(false),
+            cancel_flag: AtomicBool::new(false),
+            error_flag: AtomicBool::new(false),
+        });
+        let p0 = dir.join("part_000000");
+        let p1f = dir.join("part_000001");
+        download_chunk(&client, p1, &p0, 0, mb - 1, &shared).await.unwrap();
+        download_chunk(&client, p2, &p1f, mb, 2 * mb - 1, &shared).await.unwrap();
+        let out = dir.join("out.tar.xz");
+        merge_parts(&dir, out.to_str().unwrap(), 2 * mb, false).unwrap();
+        assert_eq!(part_size(&out), 2 * mb);
+        let _ = std::fs::remove_dir_all(&dir);
+        println!("multi-source OK: {} bytes ×2 from cdn + mirror", mb);
     }
 }

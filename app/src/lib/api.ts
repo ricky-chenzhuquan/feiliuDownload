@@ -20,6 +20,7 @@ export interface TaskSnapshot {
   speed_bps: number;
   eta_seconds: number | null;
   connections: number;
+  sources: number;
   status: TaskStatus;
   error: string | null;
   created_at: number;
@@ -52,10 +53,11 @@ export const probeUrl = (url: string) =>
 
 export const addTask = (
   url: string,
+  mirrors: string[],
   filename?: string,
   dir?: string,
   connections?: number,
-) => invoke<TaskSnapshot>("add_task", { url, filename, dir, connections });
+) => invoke<TaskSnapshot>("add_task", { url, mirrors, filename, dir, connections });
 
 export const pauseTask = (id: string) => invoke<void>("pause_task", { id });
 

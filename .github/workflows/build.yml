@@ -64,27 +64,27 @@ jobs:
         if: matrix.os == 'macos-latest'
         working-directory: app/src-tauri/target/release/bundle
         run: |
-          mkdir -p /tmp/feiliu-out
-          cp dmg/*.dmg /tmp/feiliu-out/ || true
-          cp macos/*.app.tar.gz /tmp/feiliu-out/ 2>/dev/null || true
-          cp macos/*.app.tar.gz.sig /tmp/feiliu-out/ 2>/dev/null || true
-          ls -la /tmp/feiliu-out
+          mkdir -p "$GITHUB_WORKSPACE/dist-out"
+          cp dmg/*.dmg "$GITHUB_WORKSPACE/dist-out/" || true
+          cp macos/*.app.tar.gz "$GITHUB_WORKSPACE/dist-out/" 2>/dev/null || true
+          cp macos/*.app.tar.gz.sig "$GITHUB_WORKSPACE/dist-out/" 2>/dev/null || true
+          ls -la "$GITHUB_WORKSPACE/dist-out"
 
       - name: Collect artifacts (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
         working-directory: app/src-tauri/target/release/bundle
         run: |
-          mkdir -p /tmp/feiliu-out
-          cp nsis/*-setup.exe /tmp/feiliu-out/ 2>/dev/null || true
-          cp nsis/*-setup.exe.sig /tmp/feiliu-out/ 2>/dev/null || true
-          cp msi/*.msi /tmp/feiliu-out/ 2>/dev/null || true
-          ls -la /tmp/feiliu-out
+          mkdir -p "$GITHUB_WORKSPACE/dist-out"
+          cp nsis/*-setup.exe "$GITHUB_WORKSPACE/dist-out/" 2>/dev/null || true
+          cp nsis/*-setup.exe.sig "$GITHUB_WORKSPACE/dist-out/" 2>/dev/null || true
+          cp msi/*.msi "$GITHUB_WORKSPACE/dist-out/" 2>/dev/null || true
+          ls -la "$GITHUB_WORKSPACE/dist-out"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: /tmp/feiliu-out/*
+          path: dist-out/*
           if-no-files-found: error
 
   release:

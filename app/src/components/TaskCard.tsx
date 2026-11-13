@@ -102,7 +102,10 @@ export default function TaskCard({ task }: { task: TaskSnapshot }) {
           {running && task.total_size > 0 && (
             <>
               <span className="dot">·</span>
-              <span className="conns">{task.connections} 连接</span>
+              <span className="conns">
+                {task.connections} 连接
+                {task.sources > 1 ? ` · ${task.sources} 源` : ""}
+              </span>
             </>
           )}
           {task.error && (

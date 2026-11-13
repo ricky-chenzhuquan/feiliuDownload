@@ -32,6 +32,7 @@ pub struct TaskSnapshot {
     pub speed_bps: f64,
     pub eta_seconds: Option<u64>,
     pub connections: u32,
+    pub sources: usize,
     pub status: TaskStatus,
     pub error: Option<String>,
     pub created_at: i64,
@@ -69,6 +70,8 @@ impl Default for Settings {
 pub struct PersistedTask {
     pub id: String,
     pub url: String,
+    #[serde(default)]
+    pub mirrors: Vec<String>,
     pub filename: String,
     pub save_path: String,
     pub total_size: u64,

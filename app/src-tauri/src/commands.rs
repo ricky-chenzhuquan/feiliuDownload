@@ -16,11 +16,21 @@ pub async fn probe_url(state: State<'_, TaskManager>, url: String) -> Result<Pro
 pub async fn add_task(
     state: State<'_, TaskManager>,
     url: String,
+    mirrors: Option<Vec<String>>,
     filename: Option<String>,
     dir: Option<String>,
     connections: Option<u32>,
 ) -> Result<TaskSnapshot, String> {
-    state.inner.add_task(url, filename, dir, connections).await
+    state
+        .inner
+        .add_task(
+            url,
+            mirrors.unwrap_or_default().into_iter().collect(),
+            filename,
+            dir,
+            connections,
+        )
+        .await
 }
 
 #[tauri::command]
