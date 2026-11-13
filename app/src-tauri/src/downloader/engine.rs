@@ -201,37 +201,49 @@ impl Inner {
             order.push(shared.id.clone());
             tasks.insert(shared.id.clone(), shared);
         }
+        drop(tasks);
+        drop(order);
+        self.persist_sync();
     }
 
+    fn build_task_list(&self) -> Vec<PersistedTask> {
+        let tasks = self.tasks.lock().unwrap();
+        let order = self.order.lock().unwrap();
+        order
+            .iter()
+            .filter_map(|id| tasks.get(id))
+            .map(|s| {
+                let meta = s.meta.read().unwrap();
+                PersistedTask {
+                    id: s.id.clone(),
+                    url: meta.url.clone(),
+                    filename: meta.filename.clone(),
+                    save_path: meta.save_path.clone(),
+                    total_size: meta.total_size,
+                    connections: meta.connections,
+                    accept_ranges: meta.accept_ranges,
+                    etag: meta.etag.clone(),
+                    last_modified: meta.last_modified.clone(),
+                    status: *s.status.read().unwrap(),
+                    error: s.error.read().unwrap().clone(),
+                    created_at: meta.created_at,
+                }
+            })
+            .collect()
+    }
+
+    /// 异步上下文中使用（spawn_blocking 写盘）
     fn persist(&self) {
         let Some(path) = self.tasks_json.get() else { return };
-        let list: Vec<PersistedTask> = {
-            let tasks = self.tasks.lock().unwrap();
-            let order = self.order.lock().unwrap();
-            order
-                .iter()
-                .filter_map(|id| tasks.get(id))
-                .map(|s| {
-                    let meta = s.meta.read().unwrap();
-                    PersistedTask {
-                        id: s.id.clone(),
-                        url: meta.url.clone(),
-                        filename: meta.filename.clone(),
-                        save_path: meta.save_path.clone(),
-                        total_size: meta.total_size,
-                        connections: meta.connections,
-                        accept_ranges: meta.accept_ranges,
-                        etag: meta.etag.clone(),
-                        last_modified: meta.last_modified.clone(),
-                        status: *s.status.read().unwrap(),
-                        error: s.error.read().unwrap().clone(),
-                        created_at: meta.created_at,
-                    }
-                })
-                .collect()
-        };
+        let list = self.build_task_list();
         let path = path.clone();
         tokio::task::spawn_blocking(move || save_task_list(&path, &list));
+    }
+
+    /// 无 tokio 运行时上下文时使用（如 .setup() 主线程）
+    fn persist_sync(&self) {
+        let Some(path) = self.tasks_json.get() else { return };
+        save_task_list(path, &self.build_task_list());
     }
 
     fn emit_list(&self) {
@@ -721,7 +733,9 @@ async fn run_single(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta
     }
 }
 
-/// 下载单个分片（追加到 part 文件，重试时从断点继续）
+/// 下载单个分片（追加到 part 文件，重试时从断点继续）。
+/// 重试计数只统计「无进展」的失败；只要分片有字节增长就重置计数，
+/// 这样即使服务器反复限速断流，也能持续续传直到完成。
 async fn download_chunk(
     client: &reqwest::Client,
     url: &str,
@@ -731,7 +745,9 @@ async fn download_chunk(
     shared: &TaskShared,
 ) -> Result<(), Flow> {
     let expected = end - start + 1;
-    for attempt in 0..MAX_CHUNK_RETRIES {
+    let mut attempt = 0u32;
+    let mut last_written = part_size(part);
+    loop {
         if shared.pause_flag.load(Ordering::Relaxed)
             || shared.cancel_flag.load(Ordering::Relaxed)
             || shared.error_flag.load(Ordering::Relaxed)
@@ -741,6 +757,13 @@ async fn download_chunk(
         let written = part_size(part);
         if written >= expected {
             return Ok(());
+        }
+        if written > last_written {
+            attempt = 0; // 有进展 → 重置连续失败计数
+        }
+        last_written = written;
+        if attempt >= MAX_CHUNK_RETRIES {
+            return Err(Flow::Fatal("连续多次重试均无进展，连接持续失败".into()));
         }
 
         let range = format!("bytes={}-{}", start + written, end);
@@ -753,7 +776,6 @@ async fn download_chunk(
                     return Ok(());
                 }
                 // 流提前结束（服务器断开/超时）：保留断点，退避重试
-                backoff(attempt).await;
             }
             Ok(r) if r.status().is_success() => {
                 // 服务器忽略 Range 返回 200：只能从头读，按 offset 跳过
@@ -765,21 +787,19 @@ async fn download_chunk(
                 if finished {
                     return Ok(());
                 }
-                backoff(attempt).await;
             }
             Ok(r) => {
                 // 4xx/5xx：退避重试
-                let status = r.status();
-                if status.as_u16() == 416 {
+                if r.status().as_u16() == 416 {
                     // 越界，视为完成
                     return Ok(());
                 }
-                backoff(attempt).await;
             }
-            Err(_) => backoff(attempt).await,
+            Err(_) => {}
         }
+        attempt += 1;
+        backoff(attempt).await;
     }
-    Err(Flow::Fatal("重试次数已达上限，连接持续失败".into()))
 }
 
 /// 单连接整文件下载（无 Range）

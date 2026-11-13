@@ -21,6 +21,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::pick_folder,
+            commands::is_mobile,
             commands::reveal_path,
         ])
         .setup(|app| {

@@ -72,5 +72,7 @@ export const setSettings = (settings: Settings) =>
 
 export const pickFolder = () => invoke<string | null>("pick_folder");
 
+export const isMobile = () => invoke<boolean>("is_mobile");
+
 export const revealPath = (path: string) =>
   invoke<void>("reveal_path", { path });

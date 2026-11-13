@@ -60,18 +60,32 @@ pub async fn set_settings(
     Ok(state.inner.update_settings(settings))
 }
 
-/// 弹出系统文件夹选择框
+/// 弹出系统文件夹选择框（仅桌面端；移动端无此能力，返回 None）
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
-    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
-    app.dialog().file().pick_folder(move |p| {
-        let s = p.map(|f| match f {
-            tauri_plugin_dialog::FilePath::Path(pb) => pb.display().to_string(),
-            tauri_plugin_dialog::FilePath::Url(u) => u.to_string(),
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+        app.dialog().file().pick_folder(move |p| {
+            let s = p.map(|f| match f {
+                tauri_plugin_dialog::FilePath::Path(pb) => pb.display().to_string(),
+                tauri_plugin_dialog::FilePath::Url(u) => u.to_string(),
+            });
+            let _ = tx.send(s);
         });
-        let _ = tx.send(s);
-    });
-    rx.await.map_err(|e| e.to_string())
+        rx.await.map_err(|e| e.to_string())
+    }
+}
+
+/// 前端判断是否移动端（用于隐藏桌面专属 UI）
+#[tauri::command]
+pub fn is_mobile() -> bool {
+    cfg!(any(target_os = "ios", target_os = "android"))
 }
 
 /// 在系统文件管理器中显示文件（下载完成后「打开所在文件夹」）

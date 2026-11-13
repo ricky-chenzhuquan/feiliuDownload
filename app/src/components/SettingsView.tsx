@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { getSettings, pickFolder, setSettings, type Settings } from "../lib/api";
+import { getSettings, isMobile, pickFolder, setSettings, type Settings } from "../lib/api";
 import { IconFolder } from "./Icons";
 
 export default function SettingsView() {
   const [settings, setLocal] = useState<Settings | null>(null);
+  const [mobile, setMobile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     getSettings().then(setLocal);
+    isMobile().then(setMobile);
   }, []);
 
   if (!settings) return <div className="page-loading">加载中…</div>;
@@ -35,15 +37,23 @@ export default function SettingsView() {
       <div className="settings-card">
         <h3>下载设置</h3>
 
-        <div className="field">
-          <label>默认保存位置</label>
-          <div className="url-row">
-            <input className="text-input" value={settings.download_dir} readOnly />
-            <button className="btn ghost" onClick={chooseDir}>
-              <IconFolder size={15} /> 选择…
-            </button>
+        {!mobile && (
+          <div className="field">
+            <label>默认保存位置</label>
+            <div className="url-row">
+              <input className="text-input" value={settings.download_dir} readOnly />
+              <button className="btn ghost" onClick={chooseDir}>
+                <IconFolder size={15} /> 选择…
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+        {mobile && (
+          <div className="field">
+            <label>保存位置</label>
+            <div className="mobile-dir-hint">文件保存在应用文档目录（iOS 系统限制）</div>
+          </div>
+        )}
 
         <div className="field">
           <label>

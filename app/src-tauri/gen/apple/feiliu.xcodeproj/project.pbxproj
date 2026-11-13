@@ -1,0 +1,361 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08A0FA94FD641BCFC63C82F2 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AC02A6D47BB841333981446F /* UIKit.framework */; };
+		22E7F9E77D09F4105A84EB25 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C08F8B3F0BC68CEC7385793E /* QuartzCore.framework */; };
+		316CBD48CAA3BC3CBAD06231 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8793451F060BDE26F71FD780 /* MetalKit.framework */; };
+		37CD25D8C780265035356E91 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 494419415D506AAF29006F5E /* Assets.xcassets */; };
+		661BD4193C0662F98E10F663 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FE45999462E20C81F12EDFC7 /* LaunchScreen.storyboard */; };
+		72D671102FE3492ACE7D1AA8 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 497A759CB56FEAD7B44665F4 /* libapp.a */; };
+		898024BC6F4579E93786296C /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BBA3E5ED941963076AE06E1 /* Metal.framework */; };
+		B075D944B7AEDF94609292BD /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FB66865D82AB368908344325 /* CoreGraphics.framework */; };
+		BB1B9D09C9685DB24981DFF0 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE2BC77008C6F9394C7D87DB /* Security.framework */; };
+		C9C4164C48A0347118B930A4 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8F5B8D6E079E49A312BF326C /* assets */; };
+		E20A5BD4FAF78FB1F4763CD9 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 56AC39AB2353EB30914864E4 /* main.mm */; };
+		F584DC2156A371C7577258FE /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FDB6203F331FFE99289ED5E7 /* WebKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0BBA3E5ED941963076AE06E1 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		1BE516D59F132C86CE9ED8DF /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		2E152FAEEEAB21C31D86503C /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		3DD3E57E09B3E5A984E33C40 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
+		4539AF983FB1C9BB6AD59978 /* engine.rs */ = {isa = PBXFileReference; path = engine.rs; sourceTree = "<group>"; };
+		47C6FC32FF2BD8DD11170E63 /* types.rs */ = {isa = PBXFileReference; path = types.rs; sourceTree = "<group>"; };
+		494419415D506AAF29006F5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		497A759CB56FEAD7B44665F4 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		56AC39AB2353EB30914864E4 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		60FA3AA664F820FA44F3353B /* feiliu_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = feiliu_iOS.entitlements; sourceTree = "<group>"; };
+		8263B39A891B3000B5EFE50A /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		8793451F060BDE26F71FD780 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		8F5B8D6E079E49A312BF326C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		9C99C2C071CE1CC46DFA93BD /* feiliu_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = feiliu_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC02A6D47BB841333981446F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		BE2BC77008C6F9394C7D87DB /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		C08F8B3F0BC68CEC7385793E /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		D1120CAFA05365D0D089983E /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
+		DD2A2137DD3BF2F4D6B237CA /* probe.rs */ = {isa = PBXFileReference; path = probe.rs; sourceTree = "<group>"; };
+		E96E85DAF0CF125AF7ADA5CC /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		F591E32149CF772EF1FAD5C5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FB66865D82AB368908344325 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		FDB6203F331FFE99289ED5E7 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		FE45999462E20C81F12EDFC7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		483DC7ADD73FB88F10583922 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72D671102FE3492ACE7D1AA8 /* libapp.a in Frameworks */,
+				B075D944B7AEDF94609292BD /* CoreGraphics.framework in Frameworks */,
+				898024BC6F4579E93786296C /* Metal.framework in Frameworks */,
+				316CBD48CAA3BC3CBAD06231 /* MetalKit.framework in Frameworks */,
+				22E7F9E77D09F4105A84EB25 /* QuartzCore.framework in Frameworks */,
+				BB1B9D09C9685DB24981DFF0 /* Security.framework in Frameworks */,
+				08A0FA94FD641BCFC63C82F2 /* UIKit.framework in Frameworks */,
+				F584DC2156A371C7577258FE /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0B390E03B7D6E9CB22D98B73 /* feiliu_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				60FA3AA664F820FA44F3353B /* feiliu_iOS.entitlements */,
+				F591E32149CF772EF1FAD5C5 /* Info.plist */,
+			);
+			path = feiliu_iOS;
+			sourceTree = "<group>";
+		};
+		1E3D1CCCAFB98A8061209924 = {
+			isa = PBXGroup;
+			children = (
+				8F5B8D6E079E49A312BF326C /* assets */,
+				494419415D506AAF29006F5E /* Assets.xcassets */,
+				FE45999462E20C81F12EDFC7 /* LaunchScreen.storyboard */,
+				9F098EB835F5667AB55BAA11 /* Externals */,
+				0B390E03B7D6E9CB22D98B73 /* feiliu_iOS */,
+				90F539C43CE4D2C2DBC17AB3 /* Sources */,
+				39ED71970443627254AD5075 /* src */,
+				9257490F1371CF070EEAC5D2 /* Frameworks */,
+				938887BCC9E54C7E53D6B0EB /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		39ED71970443627254AD5075 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				3DD3E57E09B3E5A984E33C40 /* commands.rs */,
+				8263B39A891B3000B5EFE50A /* lib.rs */,
+				1BE516D59F132C86CE9ED8DF /* main.rs */,
+				E77368FD8BE5404DC652AF42 /* downloader */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		82005D79882C766E4BB01804 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				E96E85DAF0CF125AF7ADA5CC /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		90F539C43CE4D2C2DBC17AB3 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				B8146C01B0EFEF29E8018CB4 /* feiliu */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		9257490F1371CF070EEAC5D2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FB66865D82AB368908344325 /* CoreGraphics.framework */,
+				497A759CB56FEAD7B44665F4 /* libapp.a */,
+				0BBA3E5ED941963076AE06E1 /* Metal.framework */,
+				8793451F060BDE26F71FD780 /* MetalKit.framework */,
+				C08F8B3F0BC68CEC7385793E /* QuartzCore.framework */,
+				BE2BC77008C6F9394C7D87DB /* Security.framework */,
+				AC02A6D47BB841333981446F /* UIKit.framework */,
+				FDB6203F331FFE99289ED5E7 /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		938887BCC9E54C7E53D6B0EB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9C99C2C071CE1CC46DFA93BD /* feiliu_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9F098EB835F5667AB55BAA11 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		B8146C01B0EFEF29E8018CB4 /* feiliu */ = {
+			isa = PBXGroup;
+			children = (
+				56AC39AB2353EB30914864E4 /* main.mm */,
+				82005D79882C766E4BB01804 /* bindings */,
+			);
+			path = feiliu;
+			sourceTree = "<group>";
+		};
+		E77368FD8BE5404DC652AF42 /* downloader */ = {
+			isa = PBXGroup;
+			children = (
+				4539AF983FB1C9BB6AD59978 /* engine.rs */,
+				2E152FAEEEAB21C31D86503C /* mod.rs */,
+				DD2A2137DD3BF2F4D6B237CA /* probe.rs */,
+				D1120CAFA05365D0D089983E /* state.rs */,
+				47C6FC32FF2BD8DD11170E63 /* types.rs */,
+			);
+			path = downloader;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		362C92CDA83B7E70E25556C3 /* feiliu_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F04188F29627994C18CAC357 /* Build configuration list for PBXNativeTarget "feiliu_iOS" */;
+			buildPhases = (
+				8281BA2EF63904336E66F7AD /* Build Rust Code */,
+				EC2606758816893C4DBF7357 /* Sources */,
+				F340AB09E64C7BFB1278E33F /* Resources */,
+				483DC7ADD73FB88F10583922 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = feiliu_iOS;
+			packageProductDependencies = (
+			);
+			productName = feiliu_iOS;
+			productReference = 9C99C2C071CE1CC46DFA93BD /* feiliu_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E48D2535E5FBCD9DD55B6232 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 34C15C31D58E6901FA7AE98E /* Build configuration list for PBXProject "feiliu" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1E3D1CCCAFB98A8061209924;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 938887BCC9E54C7E53D6B0EB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				362C92CDA83B7E70E25556C3 /* feiliu_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F340AB09E64C7BFB1278E33F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				37CD25D8C780265035356E91 /* Assets.xcassets in Resources */,
+				661BD4193C0662F98E10F663 /* LaunchScreen.storyboard in Resources */,
+				C9C4164C48A0347118B930A4 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		8281BA2EF63904336E66F7AD /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "pnpm tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EC2606758816893C4DBF7357 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E20A5BD4FAF78FB1F4763CD9 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0548E3A2773D1D7CADD2458A /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = feiliu_iOS/feiliu_iOS.entitlements;
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = feiliu_iOS/Info.plist;
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.feiliu.downloader;
+				PRODUCT_NAME = "FeiLiu";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		0D4EA901CAF580A7C1288383 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				CODE_SIGN_ENTITLEMENTS = feiliu_iOS/feiliu_iOS.entitlements;
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = feiliu_iOS/Info.plist;
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.feiliu.downloader;
+				PRODUCT_NAME = "FeiLiu";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		73E9A4730F5C2A5311BDACCD /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+			};
+			name = debug;
+		};
+		A95F6409FCD00DAB17CB52E4 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		34C15C31D58E6901FA7AE98E /* Build configuration list for PBXProject "feiliu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73E9A4730F5C2A5311BDACCD /* debug */,
+				A95F6409FCD00DAB17CB52E4 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		F04188F29627994C18CAC357 /* Build configuration list for PBXNativeTarget "feiliu_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0D4EA901CAF580A7C1288383 /* debug */,
+				0548E3A2773D1D7CADD2458A /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E48D2535E5FBCD9DD55B6232 /* Project object */;
+}

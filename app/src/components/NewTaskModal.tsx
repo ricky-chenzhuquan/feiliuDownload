@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   addTask,
   getSettings,
+  isMobile,
   pickFolder,
   probeUrl,
   type ProbeResult,
@@ -24,10 +25,12 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
   const [dir, setDir] = useState("");
   const [connections, setConnections] = useState(16);
   const [submitting, setSubmitting] = useState(false);
+  const [mobile, setMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
+    isMobile().then(setMobile);
     if (open) {
       getSettings().then((s) => {
         setDir((d) => d || s.download_dir);
@@ -189,15 +192,17 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
               </select>
             </div>
 
-            <div className="field">
-              <label>保存位置</label>
-              <div className="url-row">
-                <input className="text-input" value={dir} readOnly />
-                <button className="btn ghost" onClick={chooseDir}>
-                  <IconFolder size={15} /> 选择…
-                </button>
+            {!mobile && (
+              <div className="field">
+                <label>保存位置</label>
+                <div className="url-row">
+                  <input className="text-input" value={dir} readOnly />
+                  <button className="btn ghost" onClick={chooseDir}>
+                    <IconFolder size={15} /> 选择…
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="modal-actions">
               <button className="btn ghost" onClick={onClose}>

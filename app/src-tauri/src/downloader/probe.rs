@@ -21,6 +21,7 @@ pub fn client() -> Client {
                 .redirect(reqwest::redirect::Policy::limited(10))
                 .connect_timeout(std::time::Duration::from_secs(15))
                 .read_timeout(std::time::Duration::from_secs(30))
+                .http1_only()
                 .build()
                 .expect("failed to build http client")
         })

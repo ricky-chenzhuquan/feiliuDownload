@@ -675,6 +675,61 @@ input[type="range"] {
   text-align: center;
 }
 
+.mobile-dir-hint {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  padding: 4px 2px;
+}
+
+/* 移动端响应式 */
+@media (max-width: 640px) {
+  .sidebar {
+    width: 64px;
+    padding: 14px 8px;
+  }
+  .brand-text,
+  .nav-item span:not(.badge),
+  .sidebar-footer .version {
+    display: none;
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 12px 8px;
+  }
+  .badge {
+    position: absolute;
+    transform: translate(14px, -10px);
+    margin-left: 0;
+  }
+  .nav-item {
+    position: relative;
+  }
+  .speed-chip span {
+    display: none;
+  }
+  .content {
+    padding: 16px 14px;
+  }
+  .content-head h1 {
+    font-size: 18px;
+  }
+  .task-card {
+    padding: 12px;
+    gap: 10px;
+  }
+  .task-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 9px;
+  }
+  .task-stats {
+    flex-wrap: wrap;
+  }
+  .task-actions {
+    flex-direction: column;
+  }
+}
+
 /* ---- 滚动条 ---- */
 ::-webkit-scrollbar {
   width: 9px;

@@ -46,12 +46,18 @@ pnpm tauri build      # 产出 .dmg / .msi / .exe
 前置：Xcode + Rust。首次需要添加 iOS 编译目标：
 
 ```bash
-rustup target add aarch64-apple-ios aarch64-apple-sim-ios
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 cd app
 pnpm tauri ios init   # 已初始化过则跳过
 pnpm tauri ios dev    # 真机/模拟器开发（需签名）
-pnpm tauri ios build  # 产出 Xcode 工程
+pnpm tauri ios build --target aarch64-sim   # 模拟器包，产物在 gen/apple/build/arm64-sim/
 ```
+
+`tauri ios init` 还需要这些系统工具（本机缺失时安装）：
+
+- `xcodegen`：生成 Xcode 工程
+- `cocoapods`：`gem install cocoapods --user-install`
+- `libimobiledevice`：`brew install libimobiledevice`（真机部署检测用）
 
 > iOS 限制：应用退到后台后下载会暂停（系统限制），需保持前台运行。
 
