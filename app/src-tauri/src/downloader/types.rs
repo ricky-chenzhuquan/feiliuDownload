@@ -20,6 +20,14 @@ pub struct ProbeResult {
     pub accept_ranges: bool,
 }
 
+/// probe_mirrors 命令的返回值：单条镜像测速结果
+#[derive(Debug, Clone, Serialize)]
+pub struct MirrorProbe {
+    pub url: String,
+    pub ok: bool,
+    pub speed_bps: f64,
+}
+
 /// 单个任务的完整快照，随事件推送给前端
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskSnapshot {
@@ -45,6 +53,10 @@ pub struct Settings {
     pub max_concurrent_tasks: u32,
     #[serde(default = "default_true")]
     pub auto_resume_on_launch: bool,
+    #[serde(default = "default_true")]
+    pub clipboard_watch: bool,
+    #[serde(default = "default_true")]
+    pub close_to_tray: bool,
 }
 
 fn default_true() -> bool {
@@ -61,6 +73,8 @@ impl Default for Settings {
             max_connections: 16,
             max_concurrent_tasks: 3,
             auto_resume_on_launch: true,
+            clipboard_watch: true,
+            close_to_tray: true,
         }
     }
 }

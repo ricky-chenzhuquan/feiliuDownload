@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use futures::StreamExt;
-use reqwest::header::RANGE;
+use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE, RANGE};
 use reqwest::StatusCode;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
@@ -19,7 +19,7 @@ use tokio::io::AsyncWriteExt;
 use crate::downloader::probe::{self, sanitize_filename};
 use crate::downloader::state::{load_task_list, save_task_list, Sidecar, SidecarMeta, CHUNK_SIZE};
 use crate::downloader::types::{
-    PersistedTask, ProbeResult, Settings, TaskEvent, TaskSnapshot, TaskStatus,
+    MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskSnapshot, TaskStatus,
 };
 
 const MAX_CHUNK_RETRIES: u32 = 10;
@@ -300,6 +300,21 @@ impl Inner {
         *self.settings.write().unwrap() = s;
         self.persist_settings();
         self.settings()
+    }
+
+    /// 新建任务时对镜像逐个测速（256KB 采样），供 UI 展示与排序
+    pub async fn probe_mirrors(&self, urls: Vec<String>) -> Vec<MirrorProbe> {
+        let client = probe::client();
+        let measures =
+            futures::future::join_all(urls.iter().map(|u| measure_speed(&client, u))).await;
+        urls.into_iter()
+            .zip(measures.into_iter())
+            .map(|(url, m)| MirrorProbe {
+                url,
+                ok: m.is_some(),
+                speed_bps: m.map(|(s, _)| s).unwrap_or(0.0),
+            })
+            .collect()
     }
 
     // ---------- 任务操作 ----------
@@ -631,6 +646,70 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
         }
     }
 
+    // 镜像校验 + 自动测速选线：主地址与各镜像采样 256KB，
+    // 剔除大小不符/超时的源，按速度加权构建源池（快源占更多分片）
+    let pool: Arc<Vec<String>>;
+    if meta.accept_ranges {
+        let client = probe::client();
+        let mut urls = vec![meta.url.clone()];
+        for m in meta.mirrors.iter().take(8) {
+            if m != &meta.url && !urls.contains(m) {
+                urls.push(m.clone());
+            }
+        }
+        let measures = futures::future::join_all(
+            urls.iter().map(|u| measure_speed(&client, u)),
+        )
+        .await;
+        let main_speed = measures.first().cloned().flatten().map(|m| m.0);
+        let mut valid: Vec<(String, f64)> = Vec::new();
+        for (u, m) in urls.iter().skip(1).zip(measures.iter().skip(1)) {
+            if let Some((sp, total)) = m {
+                if total.map_or(true, |t| t == meta.total_size) {
+                    valid.push((u.clone(), *sp));
+                }
+            }
+        }
+        if valid.len() != meta.mirrors.len() {
+            meta.mirrors = valid.iter().map(|(u, _)| u.clone()).collect();
+            *shared.meta.write().unwrap() = meta.clone();
+            let _ = sidecar.write_meta(&SidecarMeta {
+                version: 1,
+                url: meta.url.clone(),
+                mirrors: meta.mirrors.clone(),
+                save_path: meta.save_path.clone(),
+                filename: meta.filename.clone(),
+                total_size: meta.total_size,
+                accept_ranges: meta.accept_ranges,
+                etag: meta.etag.clone(),
+                last_modified: meta.last_modified.clone(),
+                chunk_size: CHUNK_SIZE,
+            });
+        }
+        // 构建加权源池：主地址永远在场；速度按 3 倍归一取 1~4 份
+        let mut entries: Vec<(String, f64)> = vec![(meta.url.clone(), main_speed.unwrap_or(0.0))];
+        entries.extend(valid);
+        if entries.len() > 1 {
+            let max = entries
+                .iter()
+                .map(|(_, s)| *s)
+                .fold(0.0f64, f64::max)
+                .max(1.0);
+            let mut built: Vec<String> = Vec::new();
+            for (u, sp) in &entries {
+                let w = (((3.0 * sp / max).round() as usize).clamp(1, 4)).min(4);
+                for _ in 0..w {
+                    built.push(u.clone());
+                }
+            }
+            pool = Arc::new(built);
+        } else {
+            pool = Arc::new(vec![meta.url.clone()]);
+        }
+    } else {
+        pool = Arc::new(vec![meta.url.clone()]);
+    }
+
     shared
         .downloaded
         .store(sidecar.sum_parts(), Ordering::Relaxed);
@@ -644,7 +723,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
     let result = if !meta.accept_ranges || meta.total_size == 0 {
         run_single(&shared, &sidecar, &meta).await
     } else {
-        run_parallel(&shared, &sidecar, &meta).await
+        run_parallel(&shared, &sidecar, &meta, pool).await
     };
 
     shared.active_conns.store(0, Ordering::Relaxed);
@@ -745,8 +824,13 @@ pub fn set_app_handle(app: AppHandle) {
     let _ = APP.set(app);
 }
 
-/// 并行多连接下载
-async fn run_parallel(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta) -> Flow {
+/// 并行多连接下载（urls: 加权源池，分片轮询分发）
+async fn run_parallel(
+    shared: &Arc<TaskShared>,
+    sidecar: &Sidecar,
+    meta: &TaskMeta,
+    pool: Arc<Vec<String>>,
+) -> Flow {
     let total = meta.total_size;
     let chunk_size = CHUNK_SIZE;
     let chunk_count = total.div_ceil(chunk_size) as u32;
@@ -762,12 +846,9 @@ async fn run_parallel(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMe
     let workers = (meta.connections.clamp(1, 64) as usize).min(chunk_count.max(1) as usize);
     shared.active_conns.store(workers as u32, Ordering::Relaxed);
 
-    let client = probe::client();
-    // URL 池：主地址 + 镜像，分片轮询（动态队列下快源自然多拿分片）
-    let mut urls = vec![meta.url.clone()];
-    urls.extend(meta.mirrors.iter().cloned());
+    let client = probe::download_client();
     let url_counter = Arc::new(AtomicU64::new(0));
-    let urls = Arc::new(urls);
+    let urls = pool;
 
     let mut joins = Vec::new();
     for _ in 0..workers {
@@ -829,7 +910,7 @@ async fn run_single(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta
     let _ = sidecar.create();
     shared.active_conns.store(1, Ordering::Relaxed);
 
-    let client = probe::client();
+    let client = probe::download_client();
     let part = sidecar.part_file(0);
     let shared2 = shared.clone();
     match download_single(&client, &meta.url, &part, &shared2).await {
@@ -976,7 +1057,11 @@ async fn stream_response(
         while let Some(item) = stream.next().await {
             let bytes = match item {
                 Ok(b) => b,
-                Err(_) => {
+                Err(e) => {
+                    // 读取停滞超时 → 记一次 strike，累计后整体降级 HTTP/1.1
+                    if e.is_timeout() {
+                        crate::downloader::probe::note_stall();
+                    }
                     // 网络中断/超时：保留已写数据，返回 false 让上层从断点重试
                     let _ = file.flush().await;
                     return Ok(false);
@@ -1088,6 +1173,52 @@ fn merge_parts(parts_dir: &Path, save_path: &str, total: u64, single_unknown: bo
 }
 
 // ---------- 命名与工具 ----------
+
+/// 测速 + 总大小探测：Range 采样 256KB，12 秒封顶。返回 (速度 B/s, 总大小)
+async fn measure_speed(client: &reqwest::Client, url: &str) -> Option<(f64, Option<u64>)> {
+    let fut = async {
+        let start = std::time::Instant::now();
+        let resp = client.get(url).header(RANGE, "bytes=0-262143").send().await.ok()?;
+        let status = resp.status();
+        if !(status.is_success() || status == StatusCode::PARTIAL_CONTENT) {
+            return None;
+        }
+        let headers = resp.headers().clone();
+        let total = if status == StatusCode::PARTIAL_CONTENT {
+            headers
+                .get(CONTENT_RANGE)?
+                .to_str()
+                .ok()?
+                .rsplit('/')
+                .next()?
+                .parse::<u64>()
+                .ok()
+        } else {
+            headers
+                .get(CONTENT_LENGTH)?
+                .to_str()
+                .ok()?
+                .parse::<u64>()
+                .ok()
+        };
+        let mut n = 0u64;
+        let mut stream = resp.bytes_stream();
+        while n < 262_144 {
+            match stream.next().await {
+                Some(Ok(b)) => n += b.len() as u64,
+                _ => break,
+            }
+        }
+        let el = start.elapsed().as_secs_f64();
+        if n == 0 || el <= 0.0 {
+            return None;
+        }
+        Some((n as f64 / el, total))
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(12), fut)
+        .await
+        .ok()?
+}
 
 fn sanitize_name(name: Option<String>) -> Option<String> {
     let name = name?;

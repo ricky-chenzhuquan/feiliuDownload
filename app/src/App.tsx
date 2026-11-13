@@ -1,48 +1,109 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar, { type View } from "./components/Sidebar";
 import TaskCard from "./components/TaskCard";
 import NewTaskModal from "./components/NewTaskModal";
 import SettingsView from "./components/SettingsView";
 import { IconAlert, IconPause, IconPlay, IconPlus } from "./components/Icons";
 import {
+  checkForUpdate,
+  isMobile,
   listTasks,
+  notify,
   onTaskEvent,
   pauseAllTasks,
+  readClipboard,
   resumeAllTasks,
-  checkForUpdate,
   installUpdate,
+  type Settings,
   type TaskSnapshot,
+  type TaskStatus,
   type UpdateInfo,
 } from "./lib/api";
+
+const SAMPLE_WINDOW = 60; // 速度曲线采样点数（约 30 秒）
 
 export default function App() {
   const [tasks, setTasks] = useState<TaskSnapshot[]>([]);
   const [view, setView] = useState<View>("active");
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalUrl, setModalUrl] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [mobile, setMobile] = useState(false);
+  const [clipboardWatch, setClipboardWatch] = useState(false);
+
+  const speedSamples = useRef<Map<string, number[]>>(new Map());
+  const prevStatus = useRef<Map<string, TaskStatus>>(new Map());
+  const lastClipboard = useRef<string>("");
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listTasks().then(setTasks).catch(console.error);
+    listTasks().then((ts) => {
+      setTasks(ts);
+      for (const t of ts) prevStatus.current.set(t.id, t.status);
+    }).catch(console.error);
     const p = onTaskEvent((e) => {
       if (e.type === "list") {
         setTasks(e.tasks);
+        for (const t of e.tasks) prevStatus.current.set(t.id, t.status);
       } else {
-        setTasks((prev) => {
-          const i = prev.findIndex((t) => t.id === e.task.id);
-          if (i === -1) return [e.task, ...prev];
-          const next = [...prev];
+        const prev = prevStatus.current.get(e.task.id);
+        // 速度采样（下载中）
+        if (e.task.status === "downloading") {
+          const arr = speedSamples.current.get(e.task.id) ?? [];
+          arr.push(e.task.speed_bps);
+          if (arr.length > SAMPLE_WINDOW) arr.shift();
+          speedSamples.current.set(e.task.id, arr);
+        } else {
+          speedSamples.current.delete(e.task.id);
+        }
+        // 系统通知：完成 / 失败（跳过应用启动时的初始状态）
+        if (prev && prev !== e.task.status) {
+          if (e.task.status === "completed") {
+            void notify("下载完成 ✓", e.task.filename);
+          } else if (e.task.status === "failed") {
+            void notify("下载失败 ✕", `${e.task.filename}${e.task.error ? "：" + e.task.error : ""}`);
+          }
+        }
+        prevStatus.current.set(e.task.id, e.task.status);
+
+        setTasks((p) => {
+          const i = p.findIndex((t) => t.id === e.task.id);
+          if (i === -1) return [e.task, ...p];
+          const next = [...p];
           next[i] = e.task;
           return next;
         });
       }
     });
     p.then((u) => (unlisten = u));
+    isMobile().then(setMobile);
     return () => unlisten?.();
   }, []);
 
-  // 启动后静默检查更新，有新版本时顶部提示
+  // 剪贴板监听：窗口聚焦时检测到新下载链接自动弹出新建任务
+  useEffect(() => {
+    if (mobile) return;
+    let active = true;
+    const check = async () => {
+      if (!active || !document.hasFocus() || !clipboardWatch || modalOpen) return;
+      const text = await readClipboard();
+      const t = text?.trim() ?? "";
+      if (t && t !== lastClipboard.current && /^https?:\/\/\S+/i.test(t)) {
+        lastClipboard.current = t;
+        setModalUrl(t);
+        setModalOpen(true);
+      }
+    };
+    const iv = setInterval(check, 1500);
+    void check();
+    return () => {
+      active = false;
+      clearInterval(iv);
+    };
+  }, [mobile, clipboardWatch, modalOpen]);
+
+  // 启动加载设置（用于剪贴板监听开关）+ 静默检查更新
   useEffect(() => {
     checkForUpdate()
       .then((u) => {
@@ -50,6 +111,8 @@ export default function App() {
       })
       .catch(() => {});
   }, []);
+
+  const onSettingsLoaded = (s: Settings) => setClipboardWatch(s.clipboard_watch);
 
   const doInstall = async () => {
     setInstalling(true);
@@ -73,7 +136,7 @@ export default function App() {
       <Sidebar view={view} onView={setView} tasks={tasks} />
       <main className="content">
         {view === "settings" ? (
-          <SettingsView />
+          <SettingsView onLoaded={onSettingsLoaded} />
         ) : (
           <>
             {update && (
@@ -105,7 +168,7 @@ export default function App() {
                     <IconPlay size={15} /> 全部继续
                   </button>
                 )}
-                <button className="btn primary" onClick={() => setModalOpen(true)}>
+                <button className="btn primary" onClick={() => { setModalUrl(""); setModalOpen(true); }}>
                   <IconPlus size={16} /> 新建下载
                 </button>
               </div>
@@ -121,12 +184,14 @@ export default function App() {
                   <div className="empty-sub">
                     粘贴一个下载链接，开始高速多线程下载
                   </div>
-                  <button className="btn primary" onClick={() => setModalOpen(true)}>
+                  <button className="btn primary" onClick={() => { setModalUrl(""); setModalOpen(true); }}>
                     <IconPlus size={16} /> 新建下载
                   </button>
                 </div>
               ) : (
-                visible.map((t) => <TaskCard key={t.id} task={t} />)
+                visible.map((t) => (
+                  <TaskCard key={t.id} task={t} samples={speedSamples.current.get(t.id) ?? []} />
+                ))
               )}
             </div>
           </>
@@ -135,6 +200,7 @@ export default function App() {
 
       <NewTaskModal
         open={modalOpen}
+        initialUrl={modalUrl}
         onClose={() => setModalOpen(false)}
         onAdded={() => setView("active")}
       />

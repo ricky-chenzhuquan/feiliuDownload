@@ -4,19 +4,22 @@ import {
   getSettings,
   isMobile,
   pickFolder,
+  probeMirrors,
   probeUrl,
+  type MirrorProbe,
   type ProbeResult,
 } from "../lib/api";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatSpeed } from "../lib/format";
 import { IconAlert, IconBolt, IconClipboard, IconClose, IconFolder, IconLink } from "./Icons";
 
 interface Props {
   open: boolean;
+  initialUrl?: string;
   onClose: () => void;
   onAdded: () => void;
 }
 
-export default function NewTaskModal({ open, onClose, onAdded }: Props) {
+export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Props) {
   const [url, setUrl] = useState("");
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
@@ -24,11 +27,14 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
   const [filename, setFilename] = useState("");
   const [dir, setDir] = useState("");
   const [mirrors, setMirrors] = useState("");
+  const [mirrorProbes, setMirrorProbes] = useState<MirrorProbe[] | null>(null);
+  const [mirrorProbing, setMirrorProbing] = useState(false);
   const [connections, setConnections] = useState(16);
   const [submitting, setSubmitting] = useState(false);
   const [mobile, setMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | null>(null);
+  const mirrorDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     isMobile().then(setMobile);
@@ -37,6 +43,10 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
         setDir((d) => d || s.download_dir);
         setConnections(s.max_connections);
       });
+      if (initialUrl) {
+        setUrl(initialUrl);
+        void doProbeRef.current(initialUrl);
+      }
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setUrl("");
@@ -44,6 +54,7 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
       setProbeError(null);
       setFilename("");
       setMirrors("");
+      setMirrorProbes(null);
       setProbing(false);
       setSubmitting(false);
     }
@@ -65,6 +76,14 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
       setProbing(false);
     }
   };
+  const doProbeRef = useRef(doProbe);
+  doProbeRef.current = doProbe;
+
+  const parseMirrors = (raw: string, main?: string): string[] =>
+    raw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\/\S+/i.test(s) && (!main || s !== main));
 
   const onUrlChange = (v: string) => {
     setUrl(v);
@@ -75,6 +94,29 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
       debounceRef.current = window.setTimeout(() => doProbe(v), 600);
     }
   };
+
+  // 镜像测速：粘贴镜像后自动采样，展示可达性与速度
+  useEffect(() => {
+    if (!open || !probe) return;
+    const list = parseMirrors(mirrors, probe.url);
+    if (mirrorDebounceRef.current) window.clearTimeout(mirrorDebounceRef.current);
+    if (list.length === 0) {
+      setMirrorProbes(null);
+      return;
+    }
+    mirrorDebounceRef.current = window.setTimeout(async () => {
+      setMirrorProbing(true);
+      try {
+        const r = await probeMirrors(list);
+        r.sort((a, b) => (b.ok ? b.speed_bps : -1) - (a.ok ? a.speed_bps : -1));
+        setMirrorProbes(r);
+      } catch {
+        setMirrorProbes(null);
+      } finally {
+        setMirrorProbing(false);
+      }
+    }, 700);
+  }, [mirrors, probe, open]);
 
   const paste = async () => {
     try {
@@ -94,13 +136,13 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
     if (!probe || submitting) return;
     setSubmitting(true);
     try {
-      const mirrorList = mirrors
-        .split("\n")
-        .map((s) => s.trim())
-        .filter((s) => /^https?:\/\/.+/i.test(s) && s !== probe.url);
+      // 有测速结果时按速度从快到慢排序镜像
+      const list = mirrorProbes
+        ? mirrorProbes.filter((m) => m.ok).map((m) => m.url)
+        : parseMirrors(mirrors, probe.url);
       await addTask(
         probe.url,
-        mirrorList,
+        list,
         filename.trim() || undefined,
         dir.trim() || undefined,
         connections,
@@ -188,8 +230,8 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
               <label>
                 镜像地址（可选，每行一个，多源并行叠加加速）
                 <span className="label-hint">
-                  {mirrors
-                    ? `${mirrors.split("\n").filter((s) => /^https?:\/\/\S+/.test(s.trim()) && s.trim() !== probe.url).length} 个镜像`
+                  {parseMirrors(mirrors, probe.url).length > 0
+                    ? `${parseMirrors(mirrors, probe.url).length} 个镜像`
                     : ""}
                 </span>
               </label>
@@ -200,6 +242,21 @@ export default function NewTaskModal({ open, onClose, onAdded }: Props) {
                 value={mirrors}
                 onChange={(e) => setMirrors(e.target.value)}
               />
+              {mirrorProbing && <div className="mirror-hint">正在对镜像测速（采样 256KB）…</div>}
+              {mirrorProbes && (
+                <div className="mirror-probe-list">
+                  {mirrorProbes.map((m) => (
+                    <div key={m.url} className={`mirror-probe ${m.ok ? "ok" : "bad"}`}>
+                      <span className="mp-url" title={m.url}>
+                        {m.ok ? "✓" : "✕"} {m.url}
+                      </span>
+                      <span className="mp-speed">
+                        {m.ok ? formatSpeed(m.speed_bps) : "不可用"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="field">

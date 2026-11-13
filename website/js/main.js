@@ -2,6 +2,8 @@
 (function () {
   "use strict";
 
+  var APP_VERSION = "0.1.0";
+
   var DICT = {
     en: {
       "nav.features": "Features",
@@ -33,7 +35,7 @@
       "features.f7.t": "Multi-source aggregation",
       "features.f7.p": "Paste extra mirror URLs for the same file and chunks rotate across CDNs — throughput stacks instead of hitting one host's limit.",
       "download.title": "Download FeiLiu",
-      "download.sub": "Choose your platform · v0.1.0",
+      "download.sub": "Choose your platform · v{v}",
       "dl.mac.name": "macOS",
       "dl.mac.req": "Apple Silicon · macOS 10.15+",
       "dl.mac.btn": "Download dmg",
@@ -97,7 +99,7 @@
       "features.f7.t": "多源聚合加速",
       "features.f7.p": "粘贴同一文件的多个镜像线路，分片在不同 CDN 间轮询下载——多路带宽叠加，不再受单站限速。",
       "download.title": "下载飞流",
-      "download.sub": "选择你的平台 · v0.1.0",
+      "download.sub": "选择你的平台 · v{v}",
       "dl.mac.name": "macOS",
       "dl.mac.req": "Apple Silicon · macOS 10.15+",
       "dl.mac.btn": "下载 dmg",
@@ -161,7 +163,7 @@
       "features.f7.t": "マルチソース集約",
       "features.f7.p": "同一ファイルのミラー URL を追加すると、チャンクが複数 CDN を巡回——単一サイトの速度制限に縛られません。",
       "download.title": "FeiLiu をダウンロード",
-      "download.sub": "プラットフォームを選択 · v0.1.0",
+      "download.sub": "プラットフォームを選択 · v{v}",
       "dl.mac.name": "macOS",
       "dl.mac.req": "Apple Silicon · macOS 10.15+",
       "dl.mac.btn": "dmg をダウンロード",
@@ -225,7 +227,7 @@
       "features.f7.t": "Multi-Source-Aggregation",
       "features.f7.p": "Zusätzliche Mirror-URLs für dieselbe Datei einfügen — Chunks rotieren über mehrere CDNs und die Durchsätze addieren sich.",
       "download.title": "FeiLiu herunterladen",
-      "download.sub": "Plattform wählen · v0.1.0",
+      "download.sub": "Plattform wählen · v{v}",
       "dl.mac.name": "macOS",
       "dl.mac.req": "Apple Silicon · macOS 10.15+",
       "dl.mac.btn": "dmg herunterladen",
@@ -291,7 +293,7 @@
 
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
       var key = el.getAttribute("data-i18n");
-      if (dict[key] != null) el.textContent = dict[key];
+      if (dict[key] != null) el.textContent = String(dict[key]).replace(/\{v\}/g, APP_VERSION);
     });
     document.querySelectorAll("[data-i18n-html]").forEach(function (el) {
       var key = el.getAttribute("data-i18n-html");

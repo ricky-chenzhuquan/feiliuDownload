@@ -38,6 +38,14 @@ export interface Settings {
   max_connections: number;
   max_concurrent_tasks: number;
   auto_resume_on_launch: boolean;
+  clipboard_watch: boolean;
+  close_to_tray: boolean;
+}
+
+export interface MirrorProbe {
+  url: string;
+  ok: boolean;
+  speed_bps: number;
 }
 
 export type TaskEvent =
@@ -50,6 +58,9 @@ export function onTaskEvent(handler: (e: TaskEvent) => void) {
 
 export const probeUrl = (url: string) =>
   invoke<ProbeResult>("probe_url", { url });
+
+export const probeMirrors = (urls: string[]) =>
+  invoke<MirrorProbe[]>("probe_mirrors", { urls });
 
 export const addTask = (
   url: string,
@@ -99,6 +110,33 @@ export const onUpdateProgress = (
   listen<[number, number | null]>("update://progress", (e) =>
     handler(e.payload[0], e.payload[1]),
   );
+
+// ---------- 系统通知 ----------
+
+export async function notify(title: string, body: string) {
+  try {
+    const { isPermissionGranted, requestPermission, sendNotification } =
+      await import("@tauri-apps/plugin-notification");
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      granted = (await requestPermission()) === "granted";
+    }
+    if (granted) sendNotification({ title, body });
+  } catch {
+    /* 通知不可用时静默跳过 */
+  }
+}
+
+// ---------- 剪贴板 ----------
+
+export async function readClipboard(): Promise<string | null> {
+  try {
+    const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
+    return await readText();
+  } catch {
+    return null;
+  }
+}
 
 export const revealPath = (path: string) =>
   invoke<void>("reveal_path", { path });

@@ -1,4 +1,5 @@
 //! URL 探测：通过 HEAD / Range-GET 获取文件名、大小、是否支持断点续传。
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::OnceLock;
 
 use percent_encoding::percent_decode_str;
@@ -10,22 +11,47 @@ use reqwest::{Client, StatusCode};
 
 pub const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-static CLIENT: OnceLock<Client> = OnceLock::new();
+static CLIENT_DEFAULT: OnceLock<Client> = OnceLock::new();
+static CLIENT_H1: OnceLock<Client> = OnceLock::new();
 
-/// 全局共享 HTTP 客户端（连接池 + rustls + 超时保护）
+/// HTTP/2 自适应降级：默认允许 h2（多路复用省握手），
+/// 读取停滞超时累计 ≥3 次则整个会话降级为 HTTP/1.1（h2 挂流问题的兜底）。
+static HTTP1_MODE: AtomicBool = AtomicBool::new(false);
+static STALL_STRIKES: AtomicU32 = AtomicU32::new(0);
+
+pub fn note_stall() {
+    let n = STALL_STRIKES.fetch_add(1, Ordering::Relaxed) + 1;
+    if n >= 3 {
+        HTTP1_MODE.store(true, Ordering::Relaxed);
+    }
+}
+
+fn build_client(http1_only: bool) -> Client {
+    let mut b = Client::builder()
+        .user_agent(USER_AGENT_VALUE)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .read_timeout(std::time::Duration::from_secs(30));
+    if http1_only {
+        b = b.http1_only();
+    }
+    b.build().expect("failed to build http client")
+}
+
+/// 探测/轻量请求用的客户端（默认 h2 自适应）
 pub fn client() -> Client {
-    CLIENT
-        .get_or_init(|| {
-            Client::builder()
-                .user_agent(USER_AGENT_VALUE)
-                .redirect(reqwest::redirect::Policy::limited(10))
-                .connect_timeout(std::time::Duration::from_secs(15))
-                .read_timeout(std::time::Duration::from_secs(30))
-                .http1_only()
-                .build()
-                .expect("failed to build http client")
-        })
-        .clone()
+    if HTTP1_MODE.load(Ordering::Relaxed) {
+        CLIENT_H1.get_or_init(|| build_client(true)).clone()
+    } else {
+        CLIENT_DEFAULT
+            .get_or_init(|| build_client(false))
+            .clone()
+    }
+}
+
+/// 分片下载用客户端：跟随自适应降级开关
+pub fn download_client() -> Client {
+    client()
 }
 
 #[derive(Debug, Clone, Default)]

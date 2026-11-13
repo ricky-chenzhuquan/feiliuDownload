@@ -5,11 +5,20 @@ use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::downloader::engine::TaskManager;
-use crate::downloader::types::{ProbeResult, Settings, TaskSnapshot};
+use crate::downloader::types::{MirrorProbe, ProbeResult, Settings, TaskSnapshot};
 
 #[tauri::command]
 pub async fn probe_url(state: State<'_, TaskManager>, url: String) -> Result<ProbeResult, String> {
     state.inner.probe_url(&url).await
+}
+
+/// 镜像测速：并行采样各镜像 256KB，返回可达性与速度
+#[tauri::command]
+pub async fn probe_mirrors(
+    state: State<'_, TaskManager>,
+    urls: Vec<String>,
+) -> Result<Vec<MirrorProbe>, String> {
+    Ok(state.inner.probe_mirrors(urls).await)
 }
 
 #[tauri::command]

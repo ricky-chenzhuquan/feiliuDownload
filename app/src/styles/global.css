@@ -624,6 +624,53 @@ select {
   line-height: 1.5;
 }
 
+.mirror-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  padding: 6px 2px 0;
+}
+
+.mirror-probe-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mirror-probe {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.mirror-probe .mp-url {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mirror-probe.ok .mp-url { color: var(--text); }
+.mirror-probe.bad .mp-url { color: var(--danger); }
+
+.mirror-probe .mp-speed {
+  color: #9db9ff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.spark {
+  display: block;
+  margin-top: 7px;
+  opacity: 0.95;
+}
+
 .probe-hint {
   color: var(--text-dim);
   font-size: 13px;

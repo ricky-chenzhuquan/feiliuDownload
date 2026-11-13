@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: radial-gradient(900px 500px at 80% -10%, rgba(91,140,255,.35), transparent),
+                radial-gradient(700px 400px at 5% 110%, rgba(34,211,238,.25), transparent),
+                #070b14;
+    color: #e9eef8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap { display: flex; align-items: center; gap: 64px; }
+  .logo { width: 190px; height: 190px; }
+  .right { max-width: 700px; }
+  h1 { font-size: 72px; font-weight: 900; letter-spacing: 1px; line-height: 1.15; }
+  .grad { background: linear-gradient(135deg, #5b8cff, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin-top: 18px; font-size: 30px; color: #8a94ab; font-weight: 500; }
+  .chips { margin-top: 30px; display: flex; gap: 14px; }
+  .chip {
+    border: 1px solid rgba(91,140,255,.4); color: #9db9ff;
+    padding: 9px 22px; border-radius: 999px; font-size: 21px; font-weight: 600;
+    background: rgba(91,140,255,.08);
+  }
+  .url { margin-top: 34px; font-size: 22px; color: #5c657e; letter-spacing: .5px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <svg class="logo" viewBox="0 0 48 48" fill="none">
+      <defs><linearGradient id="g" x1="0" y1="48" x2="48" y2="0"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+      <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#g)"/>
+      <path d="M27.5 8 15 27h8l-1.5 13L34 21h-8z" fill="#fff"/>
+    </svg>
+    <div class="right">
+      <h1>飞流下载 <span class="grad">FeiLiu</span></h1>
+      <div class="sub">多线程高速下载器 · Multi-threaded Downloader</div>
+      <div class="chips">
+        <div class="chip">⚡ 64 并行连接</div>
+        <div class="chip">🔀 多源聚合</div>
+        <div class="chip">⏸️ 断点续传</div>
+      </div>
+      <div class="url">ricky-chenzhuquan.github.io/feiliuDownload</div>
+    </div>
+  </div>
+</body>
+</html>

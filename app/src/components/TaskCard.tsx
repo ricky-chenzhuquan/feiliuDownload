@@ -10,6 +10,35 @@ import {
   IconTrash,
 } from "./Icons";
 
+/** 实时速度 sparkline：60 点滑动窗口（约 30 秒） */
+function SpeedSpark({ data }: { data: number[] }) {
+  if (data.length < 2) return null;
+  const w = 120;
+  const h = 26;
+  const max = Math.max(...data, 1);
+  const pts = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - 1 - (v / max) * (h - 3);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const last = data[data.length - 1];
+  const area = `0,${h - 1} ${pts} ${w},${h - 1}`;
+  return (
+    <svg width={w} height={h} className="spark">
+      <polygon points={area} fill="rgba(91,140,255,0.10)" />
+      <polyline points={pts} fill="none" stroke="#5b8cff" strokeWidth="1.6" />
+      <circle
+        cx={w}
+        cy={h - 1 - (last / max) * (h - 3)}
+        r="2"
+        fill="#22d3ee"
+      />
+    </svg>
+  );
+}
+
 const STATUS_LABEL: Record<TaskSnapshot["status"], string> = {
   queued: "排队中",
   downloading: "下载中",
@@ -19,7 +48,13 @@ const STATUS_LABEL: Record<TaskSnapshot["status"], string> = {
   failed: "失败",
 };
 
-export default function TaskCard({ task }: { task: TaskSnapshot }) {
+export default function TaskCard({
+  task,
+  samples,
+}: {
+  task: TaskSnapshot;
+  samples: number[];
+}) {
   const [confirmDel, setConfirmDel] = useState(false);
   const kind = kindOf(task.filename);
   const colors = KIND_COLORS[kind];
@@ -114,6 +149,7 @@ export default function TaskCard({ task }: { task: TaskSnapshot }) {
             </span>
           )}
         </div>
+        {running && <SpeedSpark data={samples} />}
       </div>
 
       <div className="task-actions">

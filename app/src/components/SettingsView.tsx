@@ -11,7 +11,11 @@ import {
 } from "../lib/api";
 import { IconFolder } from "./Icons";
 
-export default function SettingsView() {
+interface Props {
+  onLoaded?: (s: Settings) => void;
+}
+
+export default function SettingsView({ onLoaded }: Props) {
   const [settings, setLocal] = useState<Settings | null>(null);
   const [mobile, setMobile] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -22,7 +26,10 @@ export default function SettingsView() {
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
-    getSettings().then(setLocal);
+    getSettings().then((s) => {
+      setLocal(s);
+      onLoaded?.(s);
+    });
     isMobile().then(setMobile);
   }, []);
 
@@ -173,6 +180,32 @@ export default function SettingsView() {
           />
           <span>启动时自动恢复未完成的下载</span>
         </label>
+
+        {!mobile && (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={settings.clipboard_watch}
+              onChange={(e) =>
+                setLocal({ ...settings, clipboard_watch: e.target.checked })
+              }
+            />
+            <span>监听剪贴板（复制下载链接自动弹出新建任务）</span>
+          </label>
+        )}
+
+        {!mobile && (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={settings.close_to_tray}
+              onChange={(e) =>
+                setLocal({ ...settings, close_to_tray: e.target.checked })
+              }
+            />
+            <span>关闭窗口时最小化到托盘（后台继续下载）</span>
+          </label>
+        )}
 
         <div className="settings-actions">
           <button className="btn primary" onClick={save} disabled={saving}>
