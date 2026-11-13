@@ -170,6 +170,20 @@
 			path = downloader;
 			sourceTree = "<group>";
 		};
+		"TEMP_9ACFDA61-AF9A-4A8A-B324-6236B43D880D" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
+		"TEMP_B8FA96AC-BEE6-4649-8C72-4AD3D51FD3E9" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -202,6 +216,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					362C92CDA83B7E70E25556C3 = {
+						DevelopmentTeam = KAY2XSTBWV;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 34C15C31D58E6901FA7AE98E /* Build configuration list for PBXProject "feiliu" */;
@@ -280,6 +298,9 @@
 					arm64,
 				);
 				CODE_SIGN_ENTITLEMENTS = feiliu_iOS/feiliu_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KAY2XSTBWV;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -303,6 +324,9 @@
 					arm64,
 				);
 				CODE_SIGN_ENTITLEMENTS = feiliu_iOS/feiliu_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KAY2XSTBWV;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (

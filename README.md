@@ -33,8 +33,8 @@
 |---|---|---|
 | macOS (Apple Silicon) | [FeiLiu_0.1.0_aarch64.dmg](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_aarch64.dmg) | ✅ |
 | Windows 10/11 (64-bit) | [FeiLiu_0.1.0_x64-setup.exe](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_x64-setup.exe) | ✅ via CI |
-| iOS | App Store / TestFlight | 🔜 pending signing |
-| Android | — | 🧭 planned (same Tauri 2 stack) |
+| iOS | [FeiLiu_0.1.0_ios.ipa](https://raw.githubusercontent.com/ricky-chenzhuquan/feiliuDownload/main/website/downloads/FeiLiu_0.1.0_ios.ipa) · development-signed | ⚠️ registered devices only · TestFlight 🔜 |
+| Android | [FeiLiu_0.1.0_aarch64.apk](https://raw.githubusercontent.com/ricky-chenzhuquan/feiliuDownload/main/website/downloads/FeiLiu_0.1.0_aarch64.apk) · self-signed | ✅ arm64-v8a |
 
 👉 All releases: [github.com/ricky-chenzhuquan/feiliuDownload/releases](https://github.com/ricky-chenzhuquan/feiliuDownload/releases)
 
