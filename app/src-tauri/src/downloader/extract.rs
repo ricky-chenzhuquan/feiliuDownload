@@ -184,6 +184,51 @@ fn clean_filename(title: &str, ext: &str) -> String {
 
 // ---------- 抖音（去水印） ----------
 
+/// 抖音 ttwid：注册接口 → 回调 Set-Cookie。会话内缓存（有效期一年）。
+async fn douyin_ttwid() -> Option<String> {
+    if let Some(t) = DOUYIN_TTWID.get() {
+        return Some(t.clone());
+    }
+    let http = reqwest::Client::builder()
+        .user_agent(MOBILE_UA)
+        .build()
+        .ok()?;
+    let resp = http
+        .post("https://ttwid.bytedance.com/ttwid/union/register/")
+        .json(&serde_json::json!({
+            "region": "cn",
+            "aid": 1768,
+            "needFid": false,
+            "service": "www.ixigua.com",
+            "migrate_info": {"ticket": "", "source": "node"},
+            "cbUrlProtocol": "https",
+            "union": true
+        }))
+        .send()
+        .await
+        .ok()?;
+    let redirect = resp
+        .json::<serde_json::Value>()
+        .await
+        .ok()?
+        .get("redirect_url")?
+        .as_str()?
+        .to_string();
+    let resp2 = http.get(&redirect).send().await.ok()?;
+    for v in resp2.headers().get_all(reqwest::header::SET_COOKIE) {
+        if let Ok(sv) = v.to_str() {
+            if let Some(idx) = sv.find("ttwid=") {
+                let val = sv[idx + 6..].split(';').next()?.to_string();
+                let _ = DOUYIN_TTWID.set(val.clone());
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
+static DOUYIN_TTWID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 async fn resolve_douyin(url: &str) -> Option<Extracted> {
     let http = reqwest::Client::builder()
         .user_agent(MOBILE_UA)
@@ -216,15 +261,13 @@ async fn resolve_douyin(url: &str) -> Option<Extracted> {
         id
     };
 
-    // iesdouyin 分享页内嵌 _ROUTER_DATA（无需登录）
-    let html = http
-        .get(format!("https://www.iesdouyin.com/share/video/{id}/"))
-        .send()
-        .await
-        .ok()?
-        .text()
-        .await
-        .ok()?;
+    // iesdouyin 分享页：需携带 ttwid Cookie 才会在 SSR 中内嵌视频数据
+    let ttwid = douyin_ttwid().await;
+    let mut req = http.get(format!("https://www.iesdouyin.com/share/video/{id}/"));
+    if let Some(t) = &ttwid {
+        req = req.header(reqwest::header::COOKIE, format!("ttwid={t}"));
+    }
+    let html = req.send().await.ok()?.text().await.ok()?;
     let data = extract_json_after(&html, "window._ROUTER_DATA")?;
     let item = find_key(&data, "item_list")?.as_array()?.first()?.clone();
 
@@ -247,9 +290,10 @@ async fn resolve_douyin(url: &str) -> Option<Extracted> {
                 .and_then(|u| u.as_str())
                 .map(|s| s.to_string())
         })?;
-    let nowm = raw.replace("/playwm/", "/play/");
-    if nowm == raw {
-        // 某些返回本身已是 play（无水印）
+    // playwm → play：取原始无水印流
+    let mut nowm = raw.replace("/playwm/", "/play/");
+    if !nowm.contains('?') {
+        nowm.push_str("?ratio=720p&line=0");
     }
 
     Some(Extracted {
@@ -531,6 +575,26 @@ async fn resolve_bilibili(url: &str) -> Option<Extracted> {
 
 
 #[cfg(test)]
+async fn probe_total(url: &str) -> u64 {
+    let client = reqwest::Client::new();
+    if let Ok(resp) = client
+        .get(url)
+        .header(reqwest::header::RANGE, "bytes=0-0")
+        .send()
+        .await
+    {
+        if let Some(cr) = resp.headers().get(reqwest::header::CONTENT_RANGE) {
+            if let Ok(s) = cr.to_str() {
+                if let Some(t) = s.rsplit('/').next() {
+                    return t.parse().unwrap_or(0);
+                }
+            }
+        }
+    }
+    0
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -585,6 +649,31 @@ mod tests {
     fn test_clean_filename() {
         assert!(clean_filename("标题:含/非法*字符", "mp4").ends_with(".mp4"));
         assert!(!clean_filename("标题:含/非法*字符", "mp4").contains(':'));
+    }
+
+    #[tokio::test]
+    async fn test_douyin_real_link() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = resolve("https://v.douyin.com/13Rs-NJ7TdY/")
+            .await
+            .expect("抖音解析失败");
+        assert!(
+            info.direct_url.contains("/play/"),
+            "应为无水印 /play/ 直链: {}",
+            info.direct_url
+        );
+        assert!(
+            !info.filename.starts_with("douyin_video"),
+            "应取到标题文件名: {}",
+            info.filename
+        );
+        println!(
+            "douyin OK: {} → {} bytes",
+            info.filename,
+            probe_total(&info.direct_url).await
+        );
     }
 
     #[test]
