@@ -61,8 +61,11 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     if lower.contains("kuaishou.com") || lower.contains("chenzhongtech.com") {
         return resolve_kuaishou(url).await;
     }
-    // 小红书
-    if lower.contains("xiaohongshu.com") || lower.contains("xhslink.com") {
+    // 小红书（含 xhslink.cn/.com 短链）
+    if lower.contains("xiaohongshu.com")
+        || lower.contains("xhslink.com")
+        || lower.contains("xhslink.cn")
+    {
         return resolve_xhs(url).await;
     }
     // 微博
@@ -116,7 +119,21 @@ fn extract_json_after(html: &str, marker: &str) -> Option<serde_json::Value> {
             b if b == close => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
-                    return serde_json::from_slice(&bytes[..=i]).ok();
+                    // 页面内嵌 JSON 常含 JS 的 undefined（如小红书压缩态），替换后才能解析
+                    let mut text = String::from_utf8_lossy(&bytes[..=i]).into_owned();
+                    if text.contains("undefined") {
+                        for (a, b) in [
+                            (": undefined", ": null"),
+                            (":undefined", ": null"),
+                            (", undefined", ", null"),
+                            (",undefined", ", null"),
+                            ("[undefined", "[null"),
+                            ("[ undefined", "[null"),
+                        ] {
+                            text = text.replace(a, b);
+                        }
+                    }
+                    return serde_json::from_str(&text).ok();
                 }
             }
             _ => {}
@@ -649,6 +666,32 @@ mod tests {
     fn test_clean_filename() {
         assert!(clean_filename("标题:含/非法*字符", "mp4").ends_with(".mp4"));
         assert!(!clean_filename("标题:含/非法*字符", "mp4").contains(':'));
+    }
+
+    /// 小红书真实短链：xhslink.cn → discovery 页 __INITIAL_STATE__ → masterUrl
+    #[tokio::test]
+    async fn test_xhs_real_link() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = resolve("https://xhslink.cn/o/1O0WRKQAjGa")
+            .await
+            .expect("小红书解析失败");
+        assert!(
+            info.direct_url.contains("xhscdn.com"),
+            "直链应来自 xhscdn: {}",
+            info.direct_url
+        );
+        assert!(
+            !info.filename.starts_with("xhs_video"),
+            "应取到标题文件名: {}",
+            info.filename
+        );
+        println!(
+            "xhs OK: {} → {} bytes",
+            info.filename,
+            probe_total(&info.direct_url).await
+        );
     }
 
     #[tokio::test]
