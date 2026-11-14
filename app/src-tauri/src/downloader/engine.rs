@@ -1749,6 +1749,104 @@ mod tests {
         );
     }
 
+    /// 抖音完整 probe() 路径（前端实际调用）：含提取+直链探测
+    #[tokio::test]
+    async fn test_douyin_full_probe() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let client = probe::client();
+        let url = "https://v.douyin.com/A65MuS9JbrI/";
+        match probe::probe(&client, url).await {
+            Ok(info) => {
+                println!(
+                    "full probe OK: filename={:?} size={:?} ct={:?} resolved={}",
+                    info.filename,
+                    info.total_size,
+                    info.content_type.as_deref().unwrap_or(""),
+                    info.resolved_url.is_some()
+                );
+                assert!(info.resolved_url.is_some(), "应解析出直链");
+                assert!(
+                    info.total_size.unwrap_or(0) > 100_000,
+                    "直链应有真实大小（HEAD/Range 探测）"
+                );
+            }
+            Err(e) => panic!("probe 失败: {e}"),
+        }
+    }
+
+    /// reqwest 实际下载 douyinvod 直链的能力验证（诊断用）
+    #[tokio::test]
+    async fn test_douyin_reqwest_download() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        // 第一步：resolve（提取直链）
+        let ex = match crate::downloader::extract::resolve("https://v.douyin.com/A65MuS9JbrI/").await {
+            Some(e) => {
+                println!("resolve OK: {}", &e.direct_url[..90.min(e.direct_url.len())]);
+                e
+            }
+            None => panic!("resolve 返回 None"),
+        };
+
+        // 第二步：原始 HTTP 层测试直链（对比默认/h1 客户端 + 打印错误根源）
+        fn err_root(e: &reqwest::Error) -> String {
+            use std::error::Error as _;
+            let mut chain = vec![format!("{}", e)];
+            let mut cur = e.source();
+            while let Some(src) = cur {
+                chain.push(format!("{}", src));
+                cur = src.source();
+            }
+            chain.join(" ← ")
+        }
+        let client = probe::client();
+        match client.head(&ex.direct_url).send().await {
+            Ok(r) => println!(
+                "HEAD(h2默认): status={} len={:?}",
+                r.status(),
+                r.content_length()
+            ),
+            Err(e) => println!("HEAD(h2默认) 错误: {}", err_root(&e)),
+        }
+        let h1 = reqwest::Client::builder()
+            .user_agent(probe::USER_AGENT_VALUE)
+            .http1_only()
+            .build()
+            .unwrap();
+        match h1.head(&ex.direct_url).send().await {
+            Ok(r) => println!("HEAD(h1强制): status={} len={:?}", r.status(), r.content_length()),
+            Err(e) => println!("HEAD(h1强制) 错误: {}", err_root(&e)),
+        }
+        match h1
+            .get(&ex.direct_url)
+            .header(reqwest::header::RANGE, "bytes=0-65535")
+            .send()
+            .await
+        {
+            Ok(r) => {
+                println!("RangeGET: status={} len={:?}", r.status(), r.content_length());
+                use futures::StreamExt;
+                let mut stream = r.bytes_stream();
+                let mut n = 0usize;
+                while let Some(item) = stream.next().await {
+                    match item {
+                        Ok(b) => n += b.len(),
+                        Err(e) => {
+                            println!("  流错误: timeout={} err={e}", e.is_timeout());
+                            break;
+                        }
+                    }
+                    if n > 65536 { break; }
+                }
+                println!("  实收字节: {n}");
+            }
+            Err(e) => println!("RangeGET 错误: timeout={} err={e}", e.is_timeout()),
+        }
+    }
+
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件
     #[tokio::test]
     async fn test_html_page_friendly_error() {

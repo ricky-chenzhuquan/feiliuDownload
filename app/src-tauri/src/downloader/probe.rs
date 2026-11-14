@@ -68,7 +68,9 @@ pub struct ProbeInfo {
     pub content_type: Option<String>,
 }
 
-/// 先做站点解析，再 HEAD，失败退回 Range-GET
+/// 先做站点解析，再 Range-GET 优先（206 带真实大小；部分播放接口
+/// 的 HEAD 会返回错误长度），失败退回 HEAD。整体失败重试一次（应对
+/// snssdk 等站点的间歇性首连失败）。
 pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     let extracted = crate::downloader::extract::resolve(url).await;
     let target = extracted
@@ -76,28 +78,35 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         .map(|e| e.direct_url.as_str())
         .unwrap_or(url);
 
-    let mut info = if let Some(i) = head_probe(client, target).await {
-        i
-    } else if let Some(i) = range_probe(client, target).await {
-        i
-    } else {
-        return Err("无法访问该地址：连接失败或返回错误状态".to_string());
-    };
+    let mut last_err: Option<String> = None;
+    for attempt in 0..2 {
+        let mut info = if let Some(i) = range_probe(client, target).await {
+            i
+        } else if let Some(i) = head_probe(client, target).await {
+            i
+        } else {
+            last_err = Some("无法访问该地址：连接失败或返回错误状态".to_string());
+            continue;
+        };
 
-    if let Some(ex) = extracted {
-        info.filename = Some(ex.filename);
-        info.resolved_url = Some(ex.direct_url);
-        info.referer = ex.referer;
-    }
-    // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
-    if info.resolved_url.is_none() {
-        let ctype = info.content_type.as_deref().unwrap_or("");
-        if ctype.contains("text/html") {
-            return Err("这是一个网页地址而不是文件直链。请复制视频/文件的分享链接或直链（若为支持的站点会自动解析）".into());
+        if let Some(ex) = &extracted {
+            info.filename = Some(ex.filename.clone());
+            info.resolved_url = Some(ex.direct_url.clone());
+            info.referer = ex.referer.clone();
         }
+        // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
+        if info.resolved_url.is_none() {
+            let ctype = info.content_type.as_deref().unwrap_or("");
+            if ctype.contains("text/html") {
+                return Err("这是一个网页地址而不是文件直链。请复制视频/文件的分享链接或直链（若为支持的站点会自动解析）".into());
+            }
+        }
+        return Ok(info);
     }
-    Ok(info)
+    Err(last_err.unwrap_or_else(|| "探测失败".into()))
 }
+
+
 
 async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
     let resp = client.head(url).send().await.ok()?;
