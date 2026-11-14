@@ -325,10 +325,9 @@ async fn resolve_weibo(url: &str) -> Option<Extracted> {
         .ok()?;
     let target = if url.contains("m.weibo.cn") {
         url.to_string()
-    } else {
-        // weibo.com 分享链接 → m.weibo.cn 状态页（从 URL 提取微博 id）
-        let idx = url.find("/status/")?;
-        let rest = &url[idx + "/status/".len()..];
+    } else if let Some(i) = url.find("/status/") {
+        // m.weibo.cn/status/{id} 或 weibo.com/status/{id}
+        let rest = &url[i + "/status/".len()..];
         let id: String = rest
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric())
@@ -337,6 +336,15 @@ async fn resolve_weibo(url: &str) -> Option<Extracted> {
             return None;
         }
         format!("https://m.weibo.cn/status/{id}")
+    } else {
+        // 新版 weibo.com 分享：weibo.com/{用户id}/{博文bid}
+        let path = url.split(['?', '#']).next().unwrap_or(url);
+        let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        if segs.len() >= 3 && segs[1].chars().all(|c| c.is_ascii_digit()) {
+            format!("https://m.weibo.cn/status/{}", segs[2])
+        } else {
+            return None; // 登录页等无效链接
+        }
     };
     let html = http.get(&target).send().await.ok()?.text().await.ok()?;
     let data = extract_json_after(&html, "$render_data = ")?;

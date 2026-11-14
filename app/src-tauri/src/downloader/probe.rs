@@ -65,6 +65,7 @@ pub struct ProbeInfo {
     pub resolved_url: Option<String>,
     /// 站点要求的 Referer（下载时随请求携带）
     pub referer: Option<String>,
+    pub content_type: Option<String>,
 }
 
 /// 先做站点解析，再 HEAD，失败退回 Range-GET
@@ -88,6 +89,13 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         info.resolved_url = Some(ex.direct_url);
         info.referer = ex.referer;
     }
+    // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
+    if info.resolved_url.is_none() {
+        let ctype = info.content_type.as_deref().unwrap_or("");
+        if ctype.contains("text/html") {
+            return Err("这是一个网页地址而不是文件直链。请复制视频/文件的分享链接或直链（若为支持的站点会自动解析）".into());
+        }
+    }
     Ok(info)
 }
 
@@ -106,6 +114,7 @@ async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
         .and_then(|v| v.to_str().ok())
         .map(|v| v.eq_ignore_ascii_case("bytes"))
         .unwrap_or(false);
+    let content_type = get_str(&headers, &reqwest::header::CONTENT_TYPE);
     let filename = parse_filename(&headers, url);
     if total_size.is_none() && filename.is_none() {
         return None; // 信息太少，退回 range 探测
@@ -116,6 +125,7 @@ async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
         accept_ranges,
         etag: get_str(&headers, &ETAG),
         last_modified: get_str(&headers, &LAST_MODIFIED),
+        content_type,
         ..Default::default()
     })
 }
@@ -143,6 +153,7 @@ pub async fn range_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
             accept_ranges: true,
             etag: get_str(&headers, &ETAG),
             last_modified: get_str(&headers, &LAST_MODIFIED),
+            content_type: get_str(&headers, &reqwest::header::CONTENT_TYPE),
             ..Default::default()
         });
     }
@@ -158,6 +169,7 @@ pub async fn range_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
             accept_ranges: false,
             etag: get_str(&headers, &ETAG),
             last_modified: get_str(&headers, &LAST_MODIFIED),
+            content_type: get_str(&headers, &reqwest::header::CONTENT_TYPE),
             ..Default::default()
         });
     }

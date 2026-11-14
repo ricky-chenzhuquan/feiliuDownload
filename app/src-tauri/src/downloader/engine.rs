@@ -1749,6 +1749,22 @@ mod tests {
         );
     }
 
+    /// 网页/登录页链接 → 明确报错而非下载垃圾文件
+    #[tokio::test]
+    async fn test_html_page_friendly_error() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let client = probe::client();
+        let login = "https://weibo.com/newlogin?tabtype=weibo&gid=102803&url=https%3A%2F%2Fwww.weibo.com%2F";
+        let err = probe::probe(&client, login)
+            .await
+            .err()
+            .expect("登录页应被拒绝而非下载");
+        assert!(err.contains("网页"), "应提示网页链接，实际: {err}");
+        println!("登录页友好拒绝 OK: {err}");
+    }
+
     /// BT 链路：磁力链 → DHT/Tracker 元数据 → 实际下载进度
     #[tokio::test]
     async fn test_torrent_magnet() {

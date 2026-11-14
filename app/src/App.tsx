@@ -92,9 +92,12 @@ export default function App() {
       if (!active || !document.hasFocus() || !clipboardWatch || modalOpen) return;
       const text = await readClipboard();
       const t = text?.trim() ?? "";
-      if (t && t !== lastClipboard.current && /^https?:\/\/\S+/i.test(t)) {
-        lastClipboard.current = t;
-        setModalUrl(t);
+      // 从分享文案中提取链接（如【标题】https://...）
+      const m = t.match(/https?:\/\/[^\s"'）)】]+/i);
+      const u = (m ? m[0] : t).trim();
+      if (u && u !== lastClipboard.current && /^(https?:\/\/\S+|magnet:\?\S+)/i.test(u)) {
+        lastClipboard.current = u;
+        setModalUrl(u);
         setModalOpen(true);
       }
     };

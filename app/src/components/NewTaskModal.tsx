@@ -47,6 +47,18 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
       if (initialUrl) {
         setUrl(initialUrl);
         void doProbeRef.current(initialUrl);
+      } else if (!mobile) {
+        // 打开弹窗时剪贴板里若已是链接 → 自动预填并探测（替代手动粘贴）
+        void (async () => {
+          const { readClipboard } = await import("../lib/api");
+          const text = await readClipboard();
+          if (!text) return;
+          const u = extractFirstUrl(text);
+          if (/^https?:\/\/\S+$/i.test(u) || /^magnet:\?/i.test(u)) {
+            setUrl(u);
+            if (/^https?:/i.test(u)) void doProbeRef.current(u);
+          }
+        })();
       }
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
@@ -61,8 +73,16 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
     }
   }, [open]);
 
+  /** 从任意粘贴文本中提取第一个链接（兼容【标题】https://... 分享格式） */
+  const extractFirstUrl = (raw: string): string => {
+    const t = raw.trim();
+    if (/^https?:\/\/\S+$/i.test(t)) return t;
+    const m = t.match(/https?:\/\/[^\s"'）)】]+/i);
+    return m ? m[0] : t;
+  };
+
   const doProbe = async (raw: string) => {
-    const u = raw.trim();
+    const u = extractFirstUrl(raw);
     if (!/^https?:\/\/.+/i.test(u)) return;
     setProbing(true);
     setProbeError(null);
@@ -87,12 +107,13 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
       .filter((s) => /^https?:\/\/\S+/i.test(s) && (!main || s !== main));
 
   const onUrlChange = (v: string) => {
-    setUrl(v);
+    const extracted = extractFirstUrl(v);
+    setUrl(extracted);
     setProbe(null);
     setProbeError(null);
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    if (/^https?:\/\/.+/i.test(v.trim())) {
-      debounceRef.current = window.setTimeout(() => doProbe(v), 600);
+    if (/^https?:\/\/.+/i.test(extracted)) {
+      debounceRef.current = window.setTimeout(() => doProbe(extracted), 600);
     }
   };
 
@@ -135,7 +156,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
 
   const submit = async () => {
     if (submitting) return;
-    const u = url.trim();
+    const u = extractFirstUrl(url);
     if (!/^https?:\/\/.+/i.test(u) && !u.startsWith("magnet:") && !/\.torrent$/i.test(u)) {
       return;
     }
@@ -197,7 +218,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
               onChange={(e) => onUrlChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
-            <button className="btn ghost" onClick={paste}>
+            <button className="btn ghost" title="粘贴" onClick={paste}>
               <IconClipboard size={15} /> 粘贴
             </button>
           </div>
