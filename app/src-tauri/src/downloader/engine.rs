@@ -19,7 +19,8 @@ use tokio::io::AsyncWriteExt;
 use crate::downloader::probe::{self, sanitize_filename};
 use crate::downloader::state::{load_task_list, save_task_list, Sidecar, SidecarMeta, CHUNK_SIZE};
 use crate::downloader::types::{
-    MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskSnapshot, TaskStatus,
+    MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskKind, TaskSnapshot,
+    TaskStatus,
 };
 
 const MAX_CHUNK_RETRIES: u32 = 10;
@@ -54,6 +55,7 @@ impl TaskShared {
             eta_seconds: *self.eta_secs.read().unwrap(),
             connections: meta.connections,
             sources: meta.mirrors.len() + 1,
+            kind: meta.kind,
             status: *self.status.read().unwrap(),
             error: self.error.read().unwrap().clone(),
             created_at: meta.created_at,
@@ -64,8 +66,13 @@ impl TaskShared {
 #[derive(Debug, Clone)]
 pub struct TaskMeta {
     url: String,
+    kind: TaskKind,
+    /// BT 信息哈希（40 位 hex），用于删除时在会话中定位任务
+    info_hash: Option<String>,
     /// 镜像地址（同一文件的其它线路/CDN），分片在其与主地址间轮询
     mirrors: Vec<String>,
+    /// 站点要求的 Referer（如 B 站 CDN）
+    referer: Option<String>,
     filename: String,
     save_path: String,
     total_size: u64,
@@ -92,6 +99,7 @@ pub struct Inner {
     settings: RwLock<Settings>,
     tasks_json: OnceLock<PathBuf>,
     settings_json: OnceLock<PathBuf>,
+    torrent_session: tokio::sync::OnceCell<Arc<librqbit::Session>>,
 }
 
 /// 供 Tauri manage 的句柄；内部 Arc 以便 spawn 'static 任务
@@ -110,6 +118,7 @@ impl TaskManager {
                 settings: RwLock::new(Settings::default()),
                 tasks_json: OnceLock::new(),
                 settings_json: OnceLock::new(),
+                torrent_session: tokio::sync::OnceCell::new(),
             }),
         }
     }
@@ -200,7 +209,10 @@ impl Inner {
                 id: p.id.clone(),
                 meta: RwLock::new(TaskMeta {
                     url: p.url,
+                    kind: p.kind,
+                    info_hash: p.info_hash,
                     mirrors: p.mirrors,
+                    referer: p.referer,
                     filename: p.filename,
                     save_path: p.save_path,
                     total_size: p.total_size,
@@ -244,6 +256,9 @@ impl Inner {
                         id: s.id.clone(),
                         url: meta.url.clone(),
                         mirrors: meta.mirrors.clone(),
+                        referer: meta.referer.clone(),
+                        kind: meta.kind,
+                        info_hash: meta.info_hash.clone(),
                         filename: meta.filename.clone(),
                     save_path: meta.save_path.clone(),
                     total_size: meta.total_size,
@@ -302,6 +317,19 @@ impl Inner {
         self.settings()
     }
 
+    /// 懒初始化 BT 会话（DHT + tracker，默认输出目录为应用下载目录）
+    pub async fn torrent_session(&self) -> Result<Arc<librqbit::Session>, String> {
+        self.torrent_session
+            .get_or_try_init(|| async {
+                let folder = self.settings.read().unwrap().download_dir.clone();
+                librqbit::Session::new(std::path::PathBuf::from(folder))
+                    .await
+                    .map_err(|e| format!("初始化 BT 会话失败: {e}"))
+            })
+            .await
+            .cloned()
+    }
+
     /// 新建任务时对镜像逐个测速（256KB 采样），供 UI 展示与排序
     pub async fn probe_mirrors(&self, urls: Vec<String>) -> Vec<MirrorProbe> {
         let client = probe::client();
@@ -323,7 +351,7 @@ impl Inner {
         let client = probe::client();
         let info = probe::probe(&client, url).await?;
         Ok(ProbeResult {
-            url: url.to_string(),
+            url: info.resolved_url.clone().unwrap_or_else(|| url.to_string()),
             filename: info.filename.unwrap_or_else(|| fallback_filename(url)),
             total_size: info.total_size.unwrap_or(0),
             accept_ranges: info.accept_ranges,
@@ -339,8 +367,13 @@ impl Inner {
         connections: Option<u32>,
     ) -> Result<TaskSnapshot, String> {
         let settings = self.settings();
+        if url.trim_start().starts_with("magnet:") || url.trim_end().ends_with(".torrent") {
+            return self.add_torrent_task(url, dir, settings.download_dir.clone()).await;
+        }
         let client = probe::client();
         let info = probe::probe(&client, &url).await?;
+        // 站点解析出的直链（如 B 站视频页 → mp4），下载走直链
+        let dl_url = info.resolved_url.clone().unwrap_or_else(|| url.clone());
 
         let name = sanitize_name(
             filename
@@ -363,8 +396,9 @@ impl Inner {
         sidecar
             .write_meta(&SidecarMeta {
                 version: 1,
-                url: url.clone(),
+                url: dl_url.clone(),
                 mirrors: mirrors.clone(),
+                referer: info.referer.clone(),
                 save_path: save_path.to_string_lossy().into_owned(),
                 filename: name.clone(),
                 total_size: info.total_size.unwrap_or(0),
@@ -382,8 +416,11 @@ impl Inner {
         let shared = Arc::new(TaskShared {
             id: id.clone(),
             meta: RwLock::new(TaskMeta {
-                url: url.clone(),
+                url: dl_url.clone(),
+                kind: TaskKind::Http,
+                info_hash: None,
                 mirrors: mirrors.clone(),
+                referer: info.referer.clone(),
                 filename: name,
                 save_path: save_path.to_string_lossy().into_owned(),
                 total_size: info.total_size.unwrap_or(0),
@@ -391,6 +428,66 @@ impl Inner {
                 etag: info.etag,
                 last_modified: info.last_modified,
                 connections: conns,
+                created_at: now_ms(),
+            }),
+            status: RwLock::new(TaskStatus::Queued),
+            error: RwLock::new(None),
+            downloaded: AtomicU64::new(0),
+            speed_bps: RwLock::new(0.0),
+            eta_secs: RwLock::new(None),
+            active_conns: AtomicU32::new(0),
+            pause_flag: AtomicBool::new(false),
+            cancel_flag: AtomicBool::new(false),
+            error_flag: AtomicBool::new(false),
+        });
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let mut order = self.order.lock().unwrap();
+            tasks.insert(id.clone(), shared);
+            order.push(id.clone());
+        }
+        self.persist();
+        self.emit_list();
+        self.dispatch();
+        Ok(self
+            .tasks
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|s| s.snapshot())
+            .expect("task just added"))
+    }
+
+    /// 创建 BT 任务：magnet 链接或本地 .torrent 文件路径
+    async fn add_torrent_task(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        default_dir: String,
+    ) -> Result<TaskSnapshot, String> {
+        let dir_path = PathBuf::from(
+            dir.filter(|d| !d.trim().is_empty()).unwrap_or(default_dir),
+        );
+        std::fs::create_dir_all(&dir_path).map_err(|e| format!("创建目录失败: {e}"))?;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let info_hash = parse_magnet_btih(&url);
+        let shared = Arc::new(TaskShared {
+            id: id.clone(),
+            meta: RwLock::new(TaskMeta {
+                url: url.clone(),
+                kind: TaskKind::Torrent,
+                info_hash,
+                mirrors: Vec::new(),
+                referer: None,
+                filename: "磁力任务（等待元数据…）".into(),
+                save_path: dir_path.to_string_lossy().into_owned(),
+                total_size: 0,
+                accept_ranges: false,
+                etag: None,
+                last_modified: None,
+                connections: 0,
                 created_at: now_ms(),
             }),
             status: RwLock::new(TaskStatus::Queued),
@@ -547,7 +644,7 @@ impl Inner {
     }
 
     pub async fn delete_task(&self, id: &str, delete_file: bool) -> Result<(), String> {
-        let (shared, save_path, status) = {
+        let (shared, save_path, kind, status) = {
             let mut tasks = self.tasks.lock().unwrap();
             let shared = tasks.remove(id).ok_or("任务不存在")?;
             {
@@ -555,10 +652,31 @@ impl Inner {
                 order.retain(|x| x != id);
             }
             let save_path = shared.meta.read().unwrap().save_path.clone();
+            let kind = shared.meta.read().unwrap().kind;
             let status = *shared.status.read().unwrap();
-            (shared, save_path, status)
+            (shared, save_path, kind, status)
         };
         shared.cancel_flag.store(true, Ordering::Relaxed);
+
+        // BT 任务：通过会话删除（可同时删文件），不走 HTTP sidecar
+        if kind == TaskKind::Torrent {
+            if let Ok(session) = self.torrent_session().await {
+                let hex = shared.meta.read().unwrap().info_hash.clone();
+                if let Some(hex) = hex {
+                    if let Ok(hash) = hex.parse::<librqbit_core::Id20>() {
+                        let _ = session
+                            .delete(
+                                librqbit::api::TorrentIdOrHash::Hash(hash),
+                                delete_file,
+                            )
+                            .await;
+                    }
+                }
+            }
+            self.persist();
+            self.emit_list();
+            return Ok(());
+        }
 
         if status == TaskStatus::Downloading || status == TaskStatus::Merging {
             // 运行中的任务由 run_task 在退出后清理 sidecar
@@ -579,7 +697,142 @@ impl Inner {
 
 // ---------- 运行循环 ----------
 
+/// BT 任务：librqbit 负责下载，本循环轮询统计并映射到任务状态
+async fn run_torrent(inner: &Arc<Inner>, id: String, shared: Arc<TaskShared>) {
+    let meta = shared.meta.read().unwrap().clone();
+    let session = match inner.torrent_session().await {
+        Ok(s) => s,
+        Err(e) => {
+            *shared.status.write().unwrap() = TaskStatus::Failed;
+            *shared.error.write().unwrap() = Some(e);
+            inner.running.fetch_sub(1, Ordering::Relaxed);
+            inner.emit_progress(&id);
+            inner.persist();
+            inner.dispatch();
+            return;
+        }
+    };
+    let resp = session
+        .add_torrent(
+            librqbit::AddTorrent::from_url(meta.url.clone()),
+            Some(librqbit::AddTorrentOptions {
+                output_folder: Some(meta.save_path.clone()),
+                ..Default::default()
+            }),
+        )
+        .await;
+    let handle = match resp {
+        Ok(r) => match r.into_handle() {
+            Some(h) => h,
+            None => {
+                *shared.status.write().unwrap() = TaskStatus::Failed;
+                *shared.error.write().unwrap() = Some("任务已在会话中但句柄不可用".into());
+                inner.running.fetch_sub(1, Ordering::Relaxed);
+                inner.emit_progress(&id);
+                inner.persist();
+                inner.dispatch();
+                return;
+            }
+        },
+        Err(e) => {
+            *shared.status.write().unwrap() = TaskStatus::Failed;
+            *shared.error.write().unwrap() = Some(format!("添加种子失败: {e}"));
+            inner.running.fetch_sub(1, Ordering::Relaxed);
+            inner.emit_progress(&id);
+            inner.persist();
+            inner.dispatch();
+            return;
+        }
+    };
+    // 记录 info_hash（删除时在会话中定位）
+    {
+        let hash_hex: String = handle
+            .info_hash()
+            .0
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        shared.meta.write().unwrap().info_hash = Some(hash_hex);
+    }
+    // 恢复场景：任务可能处于暂停态
+    let _ = session.unpause(&handle).await;
+    shared.active_conns.store(1, Ordering::Relaxed);
+    inner.emit_progress(&id);
+
+    loop {
+        tokio::time::sleep(METER_INTERVAL).await;
+        if shared.pause_flag.load(Ordering::Relaxed)
+            || shared.cancel_flag.load(Ordering::Relaxed)
+        {
+            break;
+        }
+        let st = handle.stats();
+        if let Some(err) = &st.error {
+            *shared.status.write().unwrap() = TaskStatus::Failed;
+            *shared.error.write().unwrap() = Some(err.clone());
+            break;
+        }
+        if st.total_bytes > 0 {
+            let mut meta = shared.meta.write().unwrap();
+            if meta.total_size != st.total_bytes {
+                meta.total_size = st.total_bytes;
+            }
+            if !meta.filename.starts_with("磁力任务") {
+                if let Some(n) = handle.name() {
+                    if !n.is_empty() && n != meta.filename {
+                        meta.filename = n;
+                    }
+                }
+            }
+            drop(meta);
+            shared.downloaded.store(st.progress_bytes, Ordering::Relaxed);
+        }
+        let sp = st
+            .live
+            .as_ref()
+            .map(|l| l.download_speed.mbps * 1024.0 * 1024.0)
+            .unwrap_or(0.0);
+        *shared.speed_bps.write().unwrap() = sp;
+        let total = shared.meta.read().unwrap().total_size;
+        let cur = shared.downloaded.load(Ordering::Relaxed);
+        *shared.eta_secs.write().unwrap() = if total > 0 && sp > 1.0 {
+            Some(((total - cur.min(total)) as f64 / sp) as u64)
+        } else {
+            None
+        };
+        if st.finished {
+            break;
+        }
+        inner.emit_progress(&id);
+    }
+
+    let paused = shared.pause_flag.load(Ordering::Relaxed);
+    let cancelled = shared.cancel_flag.load(Ordering::Relaxed);
+    if paused && !cancelled {
+        let _ = session.pause(&handle).await;
+        *shared.status.write().unwrap() = TaskStatus::Paused;
+    } else if handle.stats().finished && !cancelled {
+        *shared.status.write().unwrap() = TaskStatus::Completed;
+        let st = handle.stats();
+        shared.downloaded.store(st.progress_bytes, Ordering::Relaxed);
+    }
+    if cancelled {
+        // 交由 delete_task 走 session.delete；此处仅暂停避免继续下载
+        let _ = session.pause(&handle).await;
+    }
+    shared.speed_bps.write().unwrap().clone_from(&0.0);
+    shared.active_conns.store(0, Ordering::Relaxed);
+    inner.running.fetch_sub(1, Ordering::Relaxed);
+    inner.emit_progress(&id);
+    inner.persist();
+    inner.dispatch();
+}
+
 async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
+    if shared.meta.read().unwrap().kind == TaskKind::Torrent {
+        run_torrent(&inner, id, shared).await;
+        return;
+    }
     let mut meta = shared.meta.read().unwrap().clone();
     let sidecar = Sidecar::from_save_path(Path::new(&meta.save_path));
 
@@ -602,6 +855,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                     version: 1,
                     url: meta.url.clone(),
                     mirrors: meta.mirrors.clone(),
+                    referer: meta.referer.clone(),
                     save_path: meta.save_path.clone(),
                     filename: meta.filename.clone(),
                     total_size: meta.total_size,
@@ -611,38 +865,6 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                     chunk_size: CHUNK_SIZE,
                 });
             }
-        }
-    }
-
-    // 校验镜像：只保留大小与主地址一致的镜像（最多 8 个）
-    if meta.accept_ranges && !meta.mirrors.is_empty() {
-        let client = probe::client();
-        let mut valid = Vec::new();
-        for m in meta.mirrors.iter().take(8) {
-            if m == &meta.url {
-                continue;
-            }
-            if let Some(info) = probe::range_probe(&client, m).await {
-                if info.total_size.map_or(true, |t| t == meta.total_size) {
-                    valid.push(m.clone());
-                }
-            }
-        }
-        if valid.len() != meta.mirrors.len() {
-            meta.mirrors = valid;
-            *shared.meta.write().unwrap() = meta.clone();
-            let _ = sidecar.write_meta(&SidecarMeta {
-                version: 1,
-                url: meta.url.clone(),
-                mirrors: meta.mirrors.clone(),
-                save_path: meta.save_path.clone(),
-                filename: meta.filename.clone(),
-                total_size: meta.total_size,
-                accept_ranges: meta.accept_ranges,
-                etag: meta.etag.clone(),
-                last_modified: meta.last_modified.clone(),
-                chunk_size: CHUNK_SIZE,
-            });
         }
     }
 
@@ -677,6 +899,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                 version: 1,
                 url: meta.url.clone(),
                 mirrors: meta.mirrors.clone(),
+                referer: meta.referer.clone(),
                 save_path: meta.save_path.clone(),
                 filename: meta.filename.clone(),
                 total_size: meta.total_size,
@@ -953,7 +1176,12 @@ async fn download_chunk(
         }
 
         let range = format!("bytes={}-{}", start + written, end);
-        let resp = client.get(url).header(RANGE, range).send().await;
+        let req = client.get(url).header(RANGE, range);
+        let req = match shared.meta.read().unwrap().referer.clone() {
+            Some(r) => req.header(reqwest::header::REFERER, r),
+            None => req,
+        };
+        let resp = req.send().await;
 
         match resp {
             Ok(r) if r.status() == StatusCode::PARTIAL_CONTENT => {
@@ -1003,7 +1231,12 @@ async fn download_single(
         {
             return Err(Flow::Interrupted);
         }
-        match client.get(url).send().await {
+        let referer = shared.meta.read().unwrap().referer.clone();
+        let req = match referer {
+            Some(r) => client.get(url).header(reqwest::header::REFERER, r),
+            None => client.get(url),
+        };
+        match req.send().await {
             Ok(r) if r.status().is_success() => {
                 let _ = std::fs::remove_file(part);
                 if stream_response(r, part, 0, 0, shared, None).await? {
@@ -1270,6 +1503,21 @@ fn unique_save_path(dir: &Path, filename: &str) -> PathBuf {
     dir.join(format!("{stem}_{}{ext}", now_ms()))
 }
 
+/// 从 magnet 链接解析 btih 信息哈希（40 位 hex；32 位 base32 不支持，交由元数据补全）
+fn parse_magnet_btih(url: &str) -> Option<String> {
+    let idx = url.find("urn:btih:")?;
+    let rest = &url[idx + "urn:btih:".len()..];
+    let hex: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
+    if hex.len() == 40 {
+        Some(hex.to_lowercase())
+    } else {
+        None
+    }
+}
+
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1345,7 +1593,10 @@ mod tests {
             id: "test".into(),
             meta: RwLock::new(TaskMeta {
                 url: url.into(),
+                kind: TaskKind::Http,
+                info_hash: None,
                 mirrors: vec![],
+                referer: None,
                 filename: "test.mp4".into(),
                 save_path: dir.join("out.mp4").to_string_lossy().into_owned(),
                 total_size: 1_002_897_303,
@@ -1406,6 +1657,9 @@ mod tests {
             meta: RwLock::new(TaskMeta {
                 url: p1.into(),
                 mirrors: vec![p2.into()],
+                referer: None,
+                kind: TaskKind::Http,
+                info_hash: None,
                 filename: "test.tar.xz".into(),
                 save_path: dir.join("out.tar.xz").to_string_lossy().into_owned(),
                 total_size: t1,
@@ -1434,5 +1688,82 @@ mod tests {
         assert_eq!(part_size(&out), 2 * mb);
         let _ = std::fs::remove_dir_all(&dir);
         println!("multi-source OK: {} bytes ×2 from cdn + mirror", mb);
+    }
+
+    /// B 站解析链路：视频页 → view/playurl API → mp4 直链 → 大小探测
+    #[tokio::test]
+    async fn test_bilibili_extract() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let client = probe::client();
+        let page = "https://www.bilibili.com/video/BV1kMWz6CESY/?share_source=copy_web";
+        let info = probe::probe(&client, page).await.expect("B 站探测失败");
+        let direct = info.resolved_url.expect("未解析出直链");
+        assert!(direct.contains("bilivideo.com"), "直链应来自 bilivideo CDN");
+        assert!(info.filename.as_deref().unwrap_or("").ends_with(".mp4"));
+        assert!(info.total_size.unwrap_or(0) > 100_000, "直链应有真实大小");
+        assert_eq!(info.referer.as_deref(), Some("https://www.bilibili.com/"));
+        println!(
+            "bilibili OK: {} → {} ({} bytes)",
+            info.filename.as_deref().unwrap_or(""),
+            &direct[..60.min(direct.len())],
+            info.total_size.unwrap_or(0)
+        );
+    }
+
+    /// BT 链路：磁力链 → DHT/Tracker 元数据 → 实际下载进度
+    #[tokio::test]
+    async fn test_torrent_magnet() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("feiliu_bt_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let magnet = "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce";
+        let session = librqbit::Session::new(dir.clone()).await.expect("BT 会话失败");
+        let handle = session
+            .add_torrent(
+                librqbit::AddTorrent::from_url(magnet),
+                Some(librqbit::AddTorrentOptions {
+                    output_folder: Some(dir.to_string_lossy().into_owned()),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .expect("添加磁力失败")
+            .into_handle()
+            .expect("句柄缺失");
+
+        // 等元数据（最多 60 秒）
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        loop {
+            let st = handle.stats();
+            if st.total_bytes > 0 {
+                println!("metadata OK: {} bytes", st.total_bytes);
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "60 秒内未获取到种子元数据"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        }
+
+        // 等下载产生实际进度（最多 30 秒）
+        let dl_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            let st = handle.stats();
+            if st.progress_bytes > 0 {
+                println!("download OK: {} bytes downloaded", st.progress_bytes);
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < dl_deadline,
+                "30 秒内未产生下载进度"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

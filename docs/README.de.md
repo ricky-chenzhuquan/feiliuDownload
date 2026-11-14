@@ -21,6 +21,8 @@
 
 - 🚀 **Multi-Connection-Beschleunigung** — Dateien werden in 8-MiB-Chunks aufgeteilt und mit bis zu **64 parallelen Verbindungen** geladen. Dramatisch schneller bei gedrosselten Servern.
 - 🔀 **Multi-Source-Aggregation** — zusätzliche Mirror-URLs für dieselbe Datei einfügen; Chunks rotieren über CDNs und die Durchsätze addieren sich.
+- 📺 **Site-Extraktion (Bilibili)** — Videoseiten-Link einfügen, der echte MP4-Stream wird automatisch aufgelöst.
+- 🧲 **BitTorrent** — Magnet-Links & .torrent-Dateien dank librqbit (DHT + Tracker).
 - ⏸️ **Pause / Fortsetzen / Neustart-sicher** — der Chunk-Fortschritt liegt in Echtzeit auf der Festplatte; unterbrochene Downloads setzen exakt am letzten Byte fort. Optionales **Auto-Resume beim Start**.
 - 🔍 **Intelligente Erkennung** — Dateiname, Größe und Range-Unterstützung werden automatisch erkannt; Server ohne Byte-Range-Support weichen elegant auf eine einzelne Verbindung aus.
 - 🗂️ **Task-Verwaltung** — parallele Aufgaben mit Live-Geschwindigkeit, Restzeit und Verbindungsanzahl. Alles pausieren / alles fortsetzen mit einem Klick.

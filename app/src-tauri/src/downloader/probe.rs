@@ -61,16 +61,34 @@ pub struct ProbeInfo {
     pub accept_ranges: bool,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
+    /// 站点解析出的真实直链（如 B 站视频页 → mp4 直链）
+    pub resolved_url: Option<String>,
+    /// 站点要求的 Referer（下载时随请求携带）
+    pub referer: Option<String>,
 }
 
-/// 先 HEAD，失败或信息不全时退回 Range-GET
+/// 先做站点解析，再 HEAD，失败退回 Range-GET
 pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
-    if let Some(info) = head_probe(client, url).await {
-        return Ok(info);
+    let extracted = crate::downloader::extract::resolve(url).await;
+    let target = extracted
+        .as_ref()
+        .map(|e| e.direct_url.as_str())
+        .unwrap_or(url);
+
+    let mut info = if let Some(i) = head_probe(client, target).await {
+        i
+    } else if let Some(i) = range_probe(client, target).await {
+        i
+    } else {
+        return Err("无法访问该地址：连接失败或返回错误状态".to_string());
+    };
+
+    if let Some(ex) = extracted {
+        info.filename = Some(ex.filename);
+        info.resolved_url = Some(ex.direct_url);
+        info.referer = ex.referer;
     }
-    range_probe(client, url)
-        .await
-        .ok_or_else(|| "无法访问该地址：连接失败或返回错误状态".to_string())
+    Ok(info)
 }
 
 async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
@@ -98,6 +116,7 @@ async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
         accept_ranges,
         etag: get_str(&headers, &ETAG),
         last_modified: get_str(&headers, &LAST_MODIFIED),
+        ..Default::default()
     })
 }
 
@@ -124,6 +143,7 @@ pub async fn range_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
             accept_ranges: true,
             etag: get_str(&headers, &ETAG),
             last_modified: get_str(&headers, &LAST_MODIFIED),
+            ..Default::default()
         });
     }
     if status.is_success() {
@@ -138,6 +158,7 @@ pub async fn range_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
             accept_ranges: false,
             etag: get_str(&headers, &ETAG),
             last_modified: get_str(&headers, &LAST_MODIFIED),
+            ..Default::default()
         });
     }
     None

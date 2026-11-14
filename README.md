@@ -21,6 +21,8 @@
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.
 - 🔀 **Multi-source (mirror) downloading** — paste extra mirror URLs for the same file; chunks rotate across CDNs so throughput stacks.
+- 📺 **Site extraction (Bilibili)** — paste a video page link and the real MP4 stream is resolved automatically.
+- 🧲 **BitTorrent** — magnet links & .torrent files powered by librqbit (DHT + trackers).
 - ⏸️ **Pause / resume / restart-safe** — chunk progress lives on disk in real time; interrupted downloads resume from the exact byte. Optional **auto-resume on launch**.
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.
 - 🗂️ **Multi-task manager** — parallel tasks with live speed, ETA and connection count. Pause-all / resume-all in one click.

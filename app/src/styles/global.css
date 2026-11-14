@@ -398,6 +398,29 @@ select {
   border-radius: 999px;
 }
 
+.kind-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+
+.torrent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.torrent-note {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
 .chip-downloading {
   color: #9db9ff;
   background: rgba(91, 140, 255, 0.14);

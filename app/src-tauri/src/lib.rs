@@ -3,11 +3,13 @@ mod commands;
 mod downloader;
 
 use downloader::engine::{set_app_handle, TaskManager};
+
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
 };
+use tauri::{Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -54,6 +56,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::pick_folder,
+            commands::pick_torrent_file,
             commands::is_mobile,
             commands::reveal_path,
             commands::check_for_update,

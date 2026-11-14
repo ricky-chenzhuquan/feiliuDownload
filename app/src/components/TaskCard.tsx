@@ -96,6 +96,7 @@ export default function TaskCard({
           <span className="task-name" title={task.save_path}>
             {task.filename}
           </span>
+          {task.kind === "torrent" && <span className="kind-chip">BT</span>}
           <span
             className={`status-chip chip-${task.status}`}
           >

@@ -16,6 +16,8 @@ pub struct SidecarMeta {
     pub url: String,
     #[serde(default)]
     pub mirrors: Vec<String>,
+    #[serde(default)]
+    pub referer: Option<String>,
     pub save_path: String,
     pub filename: String,
     pub total_size: u64,

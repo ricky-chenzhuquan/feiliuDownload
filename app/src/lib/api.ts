@@ -10,6 +10,8 @@ export type TaskStatus =
   | "completed"
   | "failed";
 
+export type TaskKind = "http" | "torrent";
+
 export interface TaskSnapshot {
   id: string;
   url: string;
@@ -21,6 +23,7 @@ export interface TaskSnapshot {
   eta_seconds: number | null;
   connections: number;
   sources: number;
+  kind: TaskKind;
   status: TaskStatus;
   error: string | null;
   created_at: number;
@@ -89,6 +92,9 @@ export const setSettings = (settings: Settings) =>
   invoke<Settings>("set_settings", { settings });
 
 export const pickFolder = () => invoke<string | null>("pick_folder");
+
+export const pickTorrentFile = () =>
+  invoke<string | null>("pick_torrent_file");
 
 export const isMobile = () => invoke<boolean>("is_mobile");
 

@@ -11,6 +11,15 @@ pub enum TaskStatus {
     Failed,
 }
 
+/// 任务类型：HTTP 直链 / BT 种子（磁力链或 .torrent）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskKind {
+    #[default]
+    Http,
+    Torrent,
+}
+
 /// probe_url 命令的返回值：前端「新建任务」弹窗展示用
 #[derive(Debug, Clone, Serialize)]
 pub struct ProbeResult {
@@ -41,6 +50,7 @@ pub struct TaskSnapshot {
     pub eta_seconds: Option<u64>,
     pub connections: u32,
     pub sources: usize,
+    pub kind: TaskKind,
     pub status: TaskStatus,
     pub error: Option<String>,
     pub created_at: i64,
@@ -86,6 +96,12 @@ pub struct PersistedTask {
     pub url: String,
     #[serde(default)]
     pub mirrors: Vec<String>,
+    #[serde(default)]
+    pub referer: Option<String>,
+    #[serde(default)]
+    pub kind: TaskKind,
+    #[serde(default)]
+    pub info_hash: Option<String>,
     pub filename: String,
     pub save_path: String,
     pub total_size: u64,

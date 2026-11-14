@@ -4,6 +4,7 @@ import {
   getSettings,
   isMobile,
   pickFolder,
+  pickTorrentFile,
   probeMirrors,
   probeUrl,
   type MirrorProbe,
@@ -133,9 +134,21 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
   };
 
   const submit = async () => {
-    if (!probe || submitting) return;
+    if (submitting) return;
+    const u = url.trim();
+    if (!/^https?:\/\/.+/i.test(u) && !u.startsWith("magnet:") && !/\.torrent$/i.test(u)) {
+      return;
+    }
     setSubmitting(true);
     try {
+      if (u.startsWith("magnet:") || /\.torrent$/i.test(u)) {
+        // BT 任务：直接创建，无需探测
+        await addTask(u, [], undefined, dir.trim() || undefined, undefined);
+        onAdded();
+        onClose();
+        return;
+      }
+      if (!probe) return;
       // 有测速结果时按速度从快到慢排序镜像
       const list = mirrorProbes
         ? mirrorProbes.filter((m) => m.ok).map((m) => m.url)
@@ -158,6 +171,10 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
 
   if (!open) return null;
 
+  const isMagnet = url.trim().startsWith("magnet:");
+  const isTorrentFile = /\.torrent$/i.test(url.trim());
+  const isTorrentTask = isMagnet || isTorrentFile;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -170,12 +187,12 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
         </div>
 
         <div className="field">
-          <label>下载链接</label>
+          <label>下载链接（支持直链 / B 站视频页 / 磁力链 / .torrent）</label>
           <div className="url-row">
             <input
               ref={inputRef}
               className="text-input"
-              placeholder="粘贴 http/https 直链，例如 https://example.com/file.zip"
+              placeholder="粘贴直链、B 站视频页链接或磁力链 magnet:…"
               value={url}
               onChange={(e) => onUrlChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -184,7 +201,29 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
               <IconClipboard size={15} /> 粘贴
             </button>
           </div>
+          {!mobile && (
+            <div className="torrent-row">
+              <button
+                className="btn ghost"
+                onClick={async () => {
+                  const p = await pickTorrentFile();
+                  if (p) onUrlChange(p);
+                }}
+              >
+                🧲 选择 .torrent 文件…
+              </button>
+              <span className="torrent-note">
+                磁力/种子将创建 BT 任务，下载到保存目录
+              </span>
+            </div>
+          )}
         </div>
+
+        {isTorrentTask && (
+          <div className="probe-hint">
+            🧲 BT 任务：{isMagnet ? "磁力链接" : "本地种子文件"}，元数据获取后显示文件名与大小
+          </div>
+        )}
 
         {probing && <div className="probe-hint">正在探测文件信息…</div>}
 

@@ -91,6 +91,31 @@ pub async fn set_settings(
     Ok(state.inner.update_settings(settings))
 }
 
+/// 选择本地 .torrent 种子文件（桌面端）
+#[tauri::command]
+pub async fn pick_torrent_file(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+        app.dialog()
+            .file()
+            .add_filter("种子文件", &["torrent"])
+            .pick_file(move |p| {
+                let s = p.map(|f| match f {
+                    tauri_plugin_dialog::FilePath::Path(pb) => pb.display().to_string(),
+                    tauri_plugin_dialog::FilePath::Url(u) => u.to_string(),
+                });
+                let _ = tx.send(s);
+            });
+        rx.await.map_err(|e| e.to_string())
+    }
+}
+
 /// 弹出系统文件夹选择框（仅桌面端；移动端无此能力，返回 None）
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
