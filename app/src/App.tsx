@@ -69,7 +69,10 @@ export default function App() {
 
         setTasks((p) => {
           const i = p.findIndex((t) => t.id === e.task.id);
-          if (i === -1) return [e.task, ...p];
+          if (i === -1) {
+            // 已删除任务迟到的进度事件不再“复活”
+            return p;
+          }
           const next = [...p];
           next[i] = e.task;
           return next;

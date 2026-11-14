@@ -39,9 +39,25 @@ pub struct TaskShared {
     pub pause_flag: AtomicBool,
     pub cancel_flag: AtomicBool,
     pub error_flag: AtomicBool,
+    /// 任务已从列表删除：meter 等后台循环据此停止推送
+    pub removed: AtomicBool,
+    /// 暂停/删除时唤醒停滞中的连接（瞬时中断）
+    pub interrupt: tokio::sync::Notify,
 }
 
 impl TaskShared {
+    /// 暂停/删除信号等待：标记已设置时立即返回，否则等待唤醒
+    pub async fn wait_interrupt(&self) {
+        loop {
+            if self.pause_flag.load(Ordering::Relaxed)
+                || self.cancel_flag.load(Ordering::Relaxed)
+            {
+                return;
+            }
+            self.interrupt.notified().await;
+        }
+    }
+
     pub fn snapshot(&self) -> TaskSnapshot {
         let meta = self.meta.read().unwrap();
         TaskSnapshot {
@@ -231,6 +247,8 @@ impl Inner {
                 pause_flag: AtomicBool::new(false),
                 cancel_flag: AtomicBool::new(false),
                 error_flag: AtomicBool::new(false),
+                removed: AtomicBool::new(false),
+                interrupt: tokio::sync::Notify::new(),
             });
             let sidecar = Sidecar::from_save_path(Path::new(&shared.meta.read().unwrap().save_path));
             shared
@@ -439,6 +457,8 @@ impl Inner {
             pause_flag: AtomicBool::new(false),
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
+            removed: AtomicBool::new(false),
+            interrupt: tokio::sync::Notify::new(),
         });
 
         {
@@ -499,6 +519,8 @@ impl Inner {
             pause_flag: AtomicBool::new(false),
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
+            removed: AtomicBool::new(false),
+            interrupt: tokio::sync::Notify::new(),
         });
 
         {
@@ -577,7 +599,7 @@ impl Inner {
             }
             TaskStatus::Downloading => {
                 shared.pause_flag.store(true, Ordering::Relaxed);
-                // run_task 结束时会转为 Paused
+                shared.interrupt.notify_waiters(); // 唤醒停滞中的连接，瞬时暂停
             }
             _ => {}
         }
@@ -657,6 +679,8 @@ impl Inner {
             (shared, save_path, kind, status)
         };
         shared.cancel_flag.store(true, Ordering::Relaxed);
+        shared.removed.store(true, Ordering::Relaxed);
+        shared.interrupt.notify_waiters();
 
         // BT 任务：通过会话删除（可同时删文件），不走 HTTP sidecar
         if kind == TaskKind::Torrent {
@@ -1017,7 +1041,7 @@ async fn run_meter(id: String, shared: Arc<TaskShared>) {
     loop {
         tokio::time::sleep(METER_INTERVAL).await;
         let status = *shared.status.read().unwrap();
-        if status != TaskStatus::Downloading {
+        if status != TaskStatus::Downloading || shared.removed.load(Ordering::Relaxed) {
             break;
         }
         let cur = shared.downloaded.load(Ordering::Relaxed);
@@ -1287,10 +1311,18 @@ async fn stream_response(
         let mut done = written;
 
         let mut stream = resp.bytes_stream();
-        while let Some(item) = stream.next().await {
+        loop {
+            // 停滞的连接也能被暂停/删除瞬间唤醒
+            let item = tokio::select! {
+                item = stream.next() => item,
+                _ = shared.wait_interrupt() => {
+                    let _ = file.flush().await;
+                    return Err(Flow::Interrupted);
+                }
+            };
             let bytes = match item {
-                Ok(b) => b,
-                Err(e) => {
+                Some(Ok(b)) => b,
+                Some(Err(e)) => {
                     // 读取停滞超时 → 记一次 strike，累计后整体降级 HTTP/1.1
                     if e.is_timeout() {
                         crate::downloader::probe::note_stall();
@@ -1299,6 +1331,7 @@ async fn stream_response(
                     let _ = file.flush().await;
                     return Ok(false);
                 }
+                None => break, // 流自然结束，走循环尾部的完成度检查
             };
         let mut data: &[u8] = &bytes;
         if skip > 0 {
@@ -1615,6 +1648,8 @@ mod tests {
             pause_flag: AtomicBool::new(false),
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
+            removed: AtomicBool::new(false),
+            interrupt: tokio::sync::Notify::new(),
         });
 
         let mb = 1024 * 1024u64;
@@ -1678,6 +1713,8 @@ mod tests {
             pause_flag: AtomicBool::new(false),
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
+            removed: AtomicBool::new(false),
+            interrupt: tokio::sync::Notify::new(),
         });
         let p0 = dir.join("part_000000");
         let p1f = dir.join("part_000001");
