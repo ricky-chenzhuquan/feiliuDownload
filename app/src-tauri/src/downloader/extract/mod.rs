@@ -7,9 +7,11 @@
 //! - `xhs`：小红书（含 xhslink.cn/.com 短链）
 //! - `weibo`：微博（/status/{id} 与 weibo.com/{用户}/{博文}）
 //! - `alipan`：阿里云盘分享（匿名列出结构；下载需登录）
+//! - `baidu`：百度网盘分享（提取码自动验证 + 匿名列出结构；下载需登录/客户端）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
+mod baidu;
 mod bilibili;
 mod douyin;
 mod generic;
@@ -56,6 +58,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 阿里云盘分享
     if lower.contains("alipan.com/s/") || lower.contains("aliyundrive.com/s/") {
         return alipan::resolve(url).await;
+    }
+    // 百度网盘分享
+    if lower.contains("pan.baidu.com/s/") {
+        return baidu::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await
