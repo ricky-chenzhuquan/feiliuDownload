@@ -8,10 +8,12 @@
 //! - `weibo`：微博（/status/{id} 与 weibo.com/{用户}/{博文}）
 //! - `alipan`：阿里云盘分享（匿名列出结构；下载需登录）
 //! - `baidu`：百度网盘分享（提取码自动验证 + 匿名列出结构；下载需登录/客户端）
+//! - `csdn`：CSDN 下载中心资源（匿名列出资源信息；下载需登录 VIP/积分）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
 mod baidu;
+mod csdn;
 mod bilibili;
 mod douyin;
 mod generic;
@@ -62,6 +64,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 百度网盘分享
     if lower.contains("pan.baidu.com/s/") {
         return baidu::resolve(url).await;
+    }
+    // CSDN 下载中心
+    if lower.contains("download.csdn.net") {
+        return csdn::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await
