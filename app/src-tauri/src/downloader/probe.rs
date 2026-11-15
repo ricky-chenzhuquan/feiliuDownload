@@ -66,6 +66,8 @@ pub struct ProbeInfo {
     /// 站点要求的 Referer（下载时随请求携带）
     pub referer: Option<String>,
     pub content_type: Option<String>,
+    /// 站点限制提示（如阿里云盘需登录转存），有值时不启动下载
+    pub notice: Option<String>,
 }
 
 /// 先做站点解析，再 Range-GET 优先（206 带真实大小；部分播放接口
@@ -79,7 +81,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         .unwrap_or(url);
 
     let mut last_err: Option<String> = None;
-    for attempt in 0..2 {
+    for _attempt in 0..2 {
         let mut info = if let Some(i) = range_probe(client, target).await {
             i
         } else if let Some(i) = head_probe(client, target).await {
@@ -93,6 +95,11 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             info.filename = Some(ex.filename.clone());
             info.resolved_url = Some(ex.direct_url.clone());
             info.referer = ex.referer.clone();
+        info.notice = ex.notice.clone();
+        }
+        // 站点限制提示（如阿里云盘需登录）→ 直接作为结果返回
+        if let Some(notice) = &info.notice {
+            return Err(format!("{}：{}", info.filename.as_deref().unwrap_or("分享内容"), notice));
         }
         // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
         if info.resolved_url.is_none() {

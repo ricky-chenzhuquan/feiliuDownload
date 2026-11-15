@@ -390,6 +390,10 @@ impl Inner {
         }
         let client = probe::client();
         let info = probe::probe(&client, &url).await?;
+        // 站点限制（如阿里云盘需登录转存）→ 不创建任务
+        if let Some(notice) = &info.notice {
+            return Err(format!("{}：{}", info.filename.as_deref().unwrap_or("分享内容"), notice));
+        }
         // 站点解析出的直链（如 B 站视频页 → mp4），下载走直链
         let dl_url = info.resolved_url.clone().unwrap_or_else(|| url.clone());
 
@@ -1551,6 +1555,21 @@ fn parse_magnet_btih(url: &str) -> Option<String> {
     }
 }
 
+/// 字节数 → 人类可读（KB/MB/GB）
+pub fn human_size(n: u64) -> String {
+    if n < 1024 {
+        return format!("{n} B");
+    }
+    let units = ["KB", "MB", "GB", "TB"];
+    let mut v = n as f64 / 1024.0;
+    let mut i = 0;
+    while v >= 1024.0 && i < units.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
+    format!("{v:.1} {}", units[i])
+}
+
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1734,7 +1753,8 @@ mod tests {
             return;
         }
         let client = probe::client();
-        let page = "https://www.bilibili.com/video/BV1kMWz6CESY/?share_source=copy_web";
+        // 官方 MV（长期稳定；原测试视频 BV1kMWz6CESY 已被平台下架）
+        let page = "https://www.bilibili.com/video/BV1GJ411x7h7/";
         let info = probe::probe(&client, page).await.expect("B 站探测失败");
         let direct = info.resolved_url.expect("未解析出直链");
         assert!(direct.contains("bilivideo.com"), "直链应来自 bilivideo CDN");
