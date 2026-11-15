@@ -46,6 +46,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::probe_url,
             commands::probe_mirrors,
+            commands::add_netease_playlist,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,

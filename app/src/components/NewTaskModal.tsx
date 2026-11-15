@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   addTask,
+  addNeteasePlaylist,
   getSettings,
   isMobile,
   pickFolder,
@@ -29,6 +30,8 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
   const [dir, setDir] = useState("");
   const [mirrors, setMirrors] = useState("");
   const [mirrorProbes, setMirrorProbes] = useState<MirrorProbe[] | null>(null);
+  const [batchMsg, setBatchMsg] = useState<string | null>(null);
+  const [batching, setBatching] = useState(false);
   const [mirrorProbing, setMirrorProbing] = useState(false);
   const [connections, setConnections] = useState(16);
   const [submitting, setSubmitting] = useState(false);
@@ -140,6 +143,23 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
     }, 700);
   }, [mirrors, probe, open]);
 
+  const batchAdd = async () => {
+    if (!probe || batching) return;
+    setBatching(true);
+    try {
+      const r = await addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
+      setBatchMsg(
+        `已添加 ${r.added} 首，跳过 ${r.skipped} 首（VIP/失败）` +
+          (r.truncated ? "；歌单较长已截取前 30 首" : ""),
+      );
+      onAdded();
+    } catch (e) {
+      setProbeError(String(e));
+    } finally {
+      setBatching(false);
+    }
+  };
+
   const paste = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -170,6 +190,10 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
         return;
       }
       if (!probe) return;
+      if (probe.notice) {
+        setProbeError(probe.notice);
+        return;
+      }
       // 有测速结果时按速度从快到慢排序镜像
       const list = mirrorProbes
         ? mirrorProbes.filter((m) => m.ok).map((m) => m.url)
@@ -254,7 +278,26 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
           </div>
         )}
 
-        {probe && (
+        {probe && probe.notice && (
+          <div className="probe-error notice-box">
+            <IconAlert size={15} /> <div>
+              <b>{probe.filename}</b>
+              <div className="notice-text">{probe.notice}</div>
+              {probe.batchable_playlist && !batchMsg && (
+                <button
+                  className="btn primary sm batch-btn"
+                  onClick={batchAdd}
+                  disabled={batching}
+                >
+                  {batching ? "逐首解析添加中…" : "⚡ 一键添加免费歌曲（上限 30 首）"}
+                </button>
+              )}
+              {batchMsg && <div className="notice-ok">{batchMsg}</div>}
+            </div>
+          </div>
+        )}
+
+        {probe && !probe.notice && (
           <>
             <div className="field">
               <label>保存文件名</label>
@@ -355,6 +398,13 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
               </button>
             </div>
           </>
+        )}
+        {probe && probe.notice && (
+          <div className="modal-actions">
+            <button className="btn ghost" onClick={onClose}>
+              关闭
+            </button>
+          </div>
         )}
       </div>
     </div>

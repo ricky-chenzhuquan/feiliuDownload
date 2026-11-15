@@ -75,9 +75,11 @@ pub struct ProbeInfo {
 /// snssdk 等站点的间歇性首连失败）。
 pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     let extracted = crate::downloader::extract::resolve(url).await;
+    // direct_url 为空（如网盘/歌单仅列结构）→ 用原页面 URL 探测
     let target = extracted
         .as_ref()
         .map(|e| e.direct_url.as_str())
+        .filter(|s| !s.is_empty())
         .unwrap_or(url);
 
     let mut last_err: Option<String> = None;
@@ -97,9 +99,9 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             info.referer = ex.referer.clone();
         info.notice = ex.notice.clone();
         }
-        // 站点限制提示（如阿里云盘需登录）→ 直接作为结果返回
-        if let Some(notice) = &info.notice {
-            return Err(format!("{}：{}", info.filename.as_deref().unwrap_or("分享内容"), notice));
+        // 站点限制提示（歌单/网盘）→ 作为正常结果返回，由上层决定批量/拒绝
+        if info.notice.is_some() {
+            return Ok(info);
         }
         // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
         if info.resolved_url.is_none() {

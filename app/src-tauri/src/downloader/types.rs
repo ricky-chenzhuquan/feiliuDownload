@@ -27,6 +27,22 @@ pub struct ProbeResult {
     pub filename: String,
     pub total_size: u64, // 0 表示未知
     pub accept_ranges: bool,
+    /// 站点限制提示（如歌单需逐首/网盘需登录）；有值时不允许普通添加
+    #[serde(default)]
+    pub notice: Option<String>,
+    /// 是否支持一键批量添加（网易云歌单）
+    #[serde(default)]
+    pub batchable_playlist: bool,
+}
+
+/// 歌单批量添加结果
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchSummary {
+    pub playlist: String,
+    pub total: u32,
+    pub added: u32,
+    pub skipped: u32,
+    pub truncated: bool,
 }
 
 /// probe_mirrors 命令的返回值：单条镜像测速结果

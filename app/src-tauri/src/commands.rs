@@ -5,11 +5,27 @@ use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::downloader::engine::TaskManager;
-use crate::downloader::types::{MirrorProbe, ProbeResult, Settings, TaskSnapshot};
+use crate::downloader::types::{
+    BatchSummary, MirrorProbe, ProbeResult, Settings, TaskSnapshot,
+};
 
 #[tauri::command]
 pub async fn probe_url(state: State<'_, TaskManager>, url: String) -> Result<ProbeResult, String> {
     state.inner.probe_url(&url).await
+}
+
+/// 网易云歌单一键批量：免费歌自动建任务，VIP 跳过
+#[tauri::command]
+pub async fn add_netease_playlist(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_netease_playlist(url, dir, connections)
+        .await
 }
 
 /// 镜像测速：并行采样各镜像 256KB，返回可达性与速度

@@ -259,6 +259,24 @@ body {
 }
 .btn-dl:hover { filter: brightness(1.1); }
 
+/* 支持平台矩阵 */
+.site-matrix {
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.site-matrix table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.site-matrix th, .site-matrix td {
+  padding: 13px 18px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.site-matrix th { color: var(--dim); font-weight: 600; font-size: 13px; }
+.site-matrix td.ok { color: #6ee7b7; font-weight: 600; }
+.site-matrix td.warn { color: #fbbf24; font-weight: 600; }
+.site-matrix tr:last-child td { border-bottom: none; }
+
 /* FAQ */
 .faq { padding: 80px 24px 100px; max-width: 760px; margin: 0 auto; }
 details {

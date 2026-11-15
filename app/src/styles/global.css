@@ -700,6 +700,27 @@ select {
   padding: 10px 2px;
 }
 
+.notice-box {
+  align-items: flex-start;
+}
+
+.notice-text {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+
+.notice-ok {
+  color: var(--ok);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+
+.batch-btn {
+  margin-top: 10px;
+}
+
 .probe-error {
   display: flex;
   align-items: center;

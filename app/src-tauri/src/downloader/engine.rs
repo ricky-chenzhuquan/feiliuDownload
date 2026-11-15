@@ -19,8 +19,8 @@ use tokio::io::AsyncWriteExt;
 use crate::downloader::probe::{self, sanitize_filename};
 use crate::downloader::state::{load_task_list, save_task_list, Sidecar, SidecarMeta, CHUNK_SIZE};
 use crate::downloader::types::{
-    MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskKind, TaskSnapshot,
-    TaskStatus,
+    BatchSummary, MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskKind,
+    TaskSnapshot, TaskStatus,
 };
 
 const MAX_CHUNK_RETRIES: u32 = 10;
@@ -368,11 +368,49 @@ impl Inner {
     pub async fn probe_url(&self, url: &str) -> Result<ProbeResult, String> {
         let client = probe::client();
         let info = probe::probe(&client, url).await?;
+        let notice = info.notice.clone();
+        // 网易云歌单支持一键批量
+        let lower = url.to_lowercase();
+        let batchable_playlist = notice.is_some()
+            && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"));
         Ok(ProbeResult {
             url: info.resolved_url.clone().unwrap_or_else(|| url.to_string()),
             filename: info.filename.unwrap_or_else(|| fallback_filename(url)),
             total_size: info.total_size.unwrap_or(0),
             accept_ranges: info.accept_ranges,
+            notice,
+            batchable_playlist,
+        })
+    }
+
+    /// 网易云歌单一键批量：逐首创建下载任务（VIP 歌自动跳过）
+    pub async fn add_netease_playlist(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::netease::playlist_song_urls(&url)
+            .await
+            .ok_or("歌单解析失败")?;
+        let cap = 30.min(urls.len()); // 上限 30 首，避免 CDN 直链过期与请求风暴
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // VIP 歌或探测失败
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
         })
     }
 

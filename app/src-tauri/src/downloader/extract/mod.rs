@@ -20,7 +20,7 @@ mod douyin;
 mod generic;
 pub mod helpers;
 mod kuaishou;
-mod netease;
+pub mod netease;
 mod weibo;
 mod xhs;
 

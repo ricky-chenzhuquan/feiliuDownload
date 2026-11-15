@@ -129,6 +129,39 @@ async fn resolve_song(id: &str) -> Option<super::Extracted> {
     }
 }
 
+/// 歌单内全部单曲页链接（匿名 API 返回前 N 首），供批量下载
+pub async fn playlist_song_urls(url: &str) -> Option<(String, Vec<String>)> {
+    let http = client()?;
+    let page = follow_short(&http, url).await;
+    let id = match parse_target(&page)? {
+        NeteaseTarget::Playlist(id) => id,
+        _ => return None,
+    };
+    let v: serde_json::Value = http
+        .get(format!(
+            "https://music.163.com/api/playlist/detail?id={id}"
+        ))
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let result = v.get("result")?;
+    let name = result
+        .get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("歌单")
+        .to_string();
+    let tracks = result.get("tracks")?.as_array()?;
+    let urls = tracks
+        .iter()
+        .filter_map(|t| t.get("id").and_then(|i| i.as_u64()))
+        .map(|id| format!("https://music.163.com/song?id={id}"))
+        .collect();
+    Some((name, urls))
+}
+
 async fn resolve_playlist(id: &str) -> Option<super::Extracted> {
     let http = client()?;
     let v: serde_json::Value = http

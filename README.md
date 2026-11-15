@@ -17,6 +17,16 @@
 
 ---
 
+## 🌍 Supported Sites
+
+| Type | Sites | Parse | Download |
+|---|---|---|---|
+| Video | Bilibili · Douyin (watermark-free) · Kuaishou · Xiaohongshu · Weibo · generic pages | ✅ direct link | ✅ multi-thread |
+| Music | NetEase Cloud Music | ✅ song/playlist | ✅ free songs (VIP → notice), playlist batch |
+| Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
+| Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ login required on site (platform restriction)
+
+## ✨ Features
 ## ✨ Features
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.

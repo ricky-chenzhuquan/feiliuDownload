@@ -17,6 +17,16 @@
 
 ---
 
+## 🌍 Unterstützte Seiten
+
+| Typ | Seiten | Parsing | Download |
+|---|---|---|---|
+| Video | Bilibili · Douyin (ohne WM) · Kuaishou · Xiaohongshu · Weibo · allgemein | ✅ Direktlink | ✅ Multi-Thread |
+| Musik | NetEase Cloud Music | ✅ Song/Playlist | ✅ freie Songs (VIP → Hinweis), Playlist-Stapel |
+| Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
+| Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Login auf der Seite nötig |
+
+## ✨ Funktionen
 ## ✨ Funktionen
 
 - 🚀 **Multi-Connection-Beschleunigung** — Dateien werden in 8-MiB-Chunks aufgeteilt und mit bis zu **64 parallelen Verbindungen** geladen. Dramatisch schneller bei gedrosselten Servern.

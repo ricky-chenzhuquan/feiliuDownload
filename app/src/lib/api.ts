@@ -34,6 +34,16 @@ export interface ProbeResult {
   filename: string;
   total_size: number;
   accept_ranges: boolean;
+  notice: string | null;
+  batchable_playlist: boolean;
+}
+
+export interface BatchSummary {
+  playlist: string;
+  total: number;
+  added: number;
+  skipped: number;
+  truncated: boolean;
 }
 
 export interface Settings {
@@ -64,6 +74,12 @@ export const probeUrl = (url: string) =>
 
 export const probeMirrors = (urls: string[]) =>
   invoke<MirrorProbe[]>("probe_mirrors", { urls });
+
+export const addNeteasePlaylist = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_netease_playlist", { url, dir, connections });
 
 export const addTask = (
   url: string,
