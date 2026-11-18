@@ -68,6 +68,8 @@ pub struct ProbeInfo {
     pub content_type: Option<String>,
     /// 站点限制提示（如阿里云盘需登录转存），有值时不启动下载
     pub notice: Option<String>,
+    /// WebView 代取计划（透传自 extract 层）
+    pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
 }
 
 /// 先做站点解析，再 Range-GET 优先（206 带真实大小；部分播放接口
@@ -98,6 +100,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             info.resolved_url = Some(ex.direct_url.clone());
             info.referer = ex.referer.clone();
         info.notice = ex.notice.clone();
+        info.webview_plan = ex.webview_plan.clone();
         }
         // 站点限制提示（歌单/网盘）→ 作为正常结果返回，由上层决定批量/拒绝
         if info.notice.is_some() {

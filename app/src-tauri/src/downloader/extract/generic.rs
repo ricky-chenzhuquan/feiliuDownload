@@ -41,6 +41,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                     filename: clean_filename(title, "mp4"),
                     referer: None,
                     notice: None,
+            webview_plan: None,
                 });
             }
         }
@@ -58,6 +59,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                         filename: clean_filename("page_video", "mp4"),
                         referer: None,
                         notice: None,
+            webview_plan: None,
                     });
                 }
             }

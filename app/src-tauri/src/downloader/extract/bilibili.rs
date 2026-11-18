@@ -96,6 +96,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: clean_filename(&title, "mp4"),
         referer: Some("https://www.bilibili.com/".into()),
         notice: None,
+            webview_plan: None,
     })
 }
 

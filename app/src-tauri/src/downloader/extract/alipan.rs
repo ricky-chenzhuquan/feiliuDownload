@@ -117,6 +117,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: Some(
             "阿里云盘分享：应用可列出分享内容，但网盘文件下载需要在阿里云盘官网登录后转存到自己网盘再下载（平台限制，匿名 API 不提供下载直链）".into(),
         ),
+        webview_plan: None,
     })
 }
 

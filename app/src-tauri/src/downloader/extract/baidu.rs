@@ -176,6 +176,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: Some(
             "百度网盘分享：应用可列出分享内容（提取码已自动验证），但下载必须登录百度账号，文件夹还需官方客户端或先转存到自己网盘（平台限制，匿名无下载直链）".into(),
         ),
+        webview_plan: None,
     })
 }
 

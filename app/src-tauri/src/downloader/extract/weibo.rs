@@ -45,5 +45,6 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: clean_filename(&title, "mp4"),
         referer: Some("https://m.weibo.cn/".into()),
         notice: None,
+            webview_plan: None,
     })
 }

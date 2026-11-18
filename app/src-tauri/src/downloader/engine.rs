@@ -432,8 +432,30 @@ impl Inner {
         if let Some(notice) = &info.notice {
             return Err(format!("{}：{}", info.filename.as_deref().unwrap_or("分享内容"), notice));
         }
-        // 站点解析出的直链（如 B 站视频页 → mp4），下载走直链
-        let dl_url = info.resolved_url.clone().unwrap_or_else(|| url.clone());
+        // WebView 代取直链（蓝奏云等 TLS 指纹墙站点，桌面端）
+        let mut dl_url = info.resolved_url.clone().unwrap_or_else(|| url.clone());
+        if dl_url.is_empty() || info.webview_plan.is_some() {
+            if let Some(plan) = &info.webview_plan {
+                #[cfg(any(target_os = "ios", target_os = "android"))]
+                {
+                    let _ = plan;
+                    return Err("该站点的直链代取仅桌面版支持".into());
+                }
+                #[cfg(not(any(target_os = "ios", target_os = "android")))]
+                {
+                    if let Some(app) = self.app.get() {
+                        dl_url = crate::downloader::webview_extract::extract(app.clone(), plan)
+                            .await
+                            .map_err(|e| format!("WebView 代取直链失败: {e}"))?;
+                    } else {
+                        return Err("应用尚未初始化完成".into());
+                    }
+                }
+            }
+        }
+        if dl_url.is_empty() {
+            return Err("未解析出可下载的直链".into());
+        }
 
         let name = sanitize_name(
             filename

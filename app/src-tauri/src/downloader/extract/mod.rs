@@ -28,6 +28,15 @@ mod twitter;
 mod weibo;
 mod xhs;
 
+/// WebView 代取计划：直链被 TLS 指纹墙拦的站点（如蓝奏云），
+/// 交给应用内嵌 WebView（真浏览器指纹）加载 url 并轮询执行 js 取结果
+#[derive(Debug, Clone)]
+pub struct WebviewExtractPlan {
+    pub url: String,
+    pub js: String,
+    pub timeout_ms: u64,
+}
+
 /// 解析结果：直链 + 建议文件名 + 站点要求头 + 提示
 pub struct Extracted {
     pub direct_url: String,
@@ -35,6 +44,8 @@ pub struct Extracted {
     pub referer: Option<String>,
     /// 站点限制说明（如阿里云盘需登录转存）；有值时引擎不启动下载，前端展示提示
     pub notice: Option<String>,
+    /// 需要内嵌 WebView 代取直链的计划；engine.add_task 时执行
+    pub webview_plan: Option<WebviewExtractPlan>,
 }
 
 /// 识别并解析；非支持的站点返回 None（走普通 HTTP 下载）

@@ -88,15 +88,39 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     // 文件夹页含 filemoreajax 调用；否则视为单文件页
     if !html.contains("filemoreajax") {
         if let Some(name) = file_page_name(&html) {
-            // 单文件分享：title 即文件名
+            // 单文件分享：fn iframe 页由内嵌 WebView 代取直链
+                        let iframe_src = {
+                // find-based 提取（正则 raw string 与 " 转义纠缠，直接字符串查找）
+                let marker = "src=\"/fn?";
+                let i = html.find(marker)?;
+                let start = i + marker.len() - 1; // 指向 "
+                let rest = &html[start + 1..];
+                let end = rest.find('"')?;
+                Some(format!("/fn?{}", &rest[..end]))
+            };
+            let webview_plan = iframe_src.map(|src| {
+                let abs = if src.starts_with("http") {
+                    src
+                } else {
+                    format!("https://{}{}", host_of(&final_url).trim_end_matches('/'), src)
+                };
+                super::WebviewExtractPlan {
+                    url: abs,
+                    js: r##"(()=>{const a=document.querySelector("#tourl a");return a?JSON.stringify(a.href):"";})()"##.into(),
+                    timeout_ms: 20_000,
+                }
+            });
             return Some(super::Extracted {
-            direct_url: String::new(),
-            filename: name,
-            referer: Some("https://www.lanzou.com/".into()),
-            notice: Some(
-                "蓝奏云分享：已解析文件信息；直链获取被平台 TLS 指纹墙+人机验证拦截，请在官网页面下载（应用后续将支持内嵌浏览器代取）".into(),
-            ),
-        });
+                direct_url: String::new(),
+                filename: name,
+                referer: Some("https://www.lanzou.com/".into()),
+                notice: if webview_plan.is_some() {
+                    None
+                } else {
+                    Some("蓝奏云分享：页面缺少直链生成所需信息，请在官网页面下载".into())
+                },
+                webview_plan,
+            });
         }
     }
 
@@ -191,8 +215,9 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("{}（{} 个文件{sample_note}）", folder_name.trim_end_matches('.').trim(), total),
         referer: Some("https://www.lanzou.com/".into()),
         notice: Some(
-            "蓝奏云分享：已列出文件夹内容；文件直链获取被平台 TLS 指纹墙+人机验证拦截，请在官网页面下载（应用后续将支持内嵌浏览器代取）".into(),
+            "蓝奏云分享：已列出文件夹内容；文件夹直链需逐个文件在官网获取（平台限制）".into(),
         ),
+        webview_plan: None,
     })
 }
 
@@ -229,6 +254,22 @@ mod tests {
     fn test_file_page_name() {
         let html = "<title>漫画屋 xxx.apk - 蓝奏云</title>";
         assert_eq!(file_page_name(html), Some("漫画屋 xxx.apk".into()));
+    }
+
+    /// 单文件页应产出 WebView 代取计划（fn iframe URL + 读取 JS）
+    #[tokio::test]
+    async fn test_lanzou_single_file_plan() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve("https://ydb6.lanzoui.com/iD1r64gc2wuh")
+            .await
+            .expect("蓝奏云单文件解析失败");
+        assert!(info.notice.is_none(), "有 plan 时不应有 notice");
+        let plan = info.webview_plan.expect("应产出 WebView 代取计划");
+        assert!(plan.url.contains("/fn?"), "fn URL: {}", plan.url);
+        assert!(plan.js.contains("#tourl"), "读取 JS 应查询 #tourl");
+        println!("lanzou 单文件 plan OK: {} → {}", info.filename, plan.url);
     }
 
     /// 真实分享（GitHub issue 来源）：文件夹结构列出
