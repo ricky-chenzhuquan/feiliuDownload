@@ -1,19 +1,18 @@
 //! 蓝奏云（lanzou 系列域名）分享解析。
 //!
-//! 实测结论（2026-11-18）：
-//! - 分享结构匿名可解析：文件夹页提取 sign/t/k/puid/uid → filemoreajax 列表；
-//!   单文件页 title 含文件名
+//! 实测结论（2026-11-18 / 2026-11-20）：
+//! - 分享结构匿名可解析：文件夹页提取 sign/t/k/puid/uid → filemoreajax 列表
+//!   （zt:1，字段 name_all/id/size，id 即短链后缀）；单文件页 title 含文件名
 //! - 直链获取被 TLS 指纹墙拦截：fn 页的 ajaxfile POST 仅真实浏览器指纹可过
-//!   （curl/rustls 均 403），且直链本身还有人机验证页 → notice 引导官网下载。
-//!   后续候选方案：应用内嵌 WebView（Tauri WKWebView 指纹即真 Safari）执行流程。
+//!   （curl/rustls 均 403）→ 应用内嵌 WebView 代取（真 Safari 指纹）已实现
+//! - 文件夹批量：列表 id → 逐个单文件页 URL → 引擎批量逐个 add_task
+//!   （每个文件走一次 WebView 代取，速度较慢属预期）
 use serde_json::Value;
-
-
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 /// 蓝奏云系列域名（子域多变：ydb6./www. 等）
-fn is_lanzou(url: &str) -> bool {
+pub fn is_lanzou(url: &str) -> bool {
     let lower = url.to_lowercase();
     ["lanzou.com", "lanzoui.com", "lanzouw.com", "lanzoue.com", "lanzouf.com", "lanzn.com", "lanpv.com", "lanzoub.com"]
         .iter()
@@ -76,55 +75,19 @@ fn file_page_name(html: &str) -> Option<String> {
     }
 }
 
-pub async fn resolve(url: &str) -> Option<super::Extracted> {
-    if !is_lanzou(url) {
-        return None;
-    }
-    let http = page_client()?;
+/// 文件夹页 → 拉取 filemoreajax 列表，返回 (final_url, items)
+/// （sign/t/k/puid/uid 提取 + POST；t/k 变量名每次请求随机化，按值形态定位）
+async fn fetch_folder_items(
+    http: &reqwest::Client,
+    url: &str,
+) -> Option<(String, Vec<Value>)> {
     let resp = http.get(url).send().await.ok()?;
     let final_url = resp.url().to_string();
     let html = resp.text().await.ok()?;
-
-    // 文件夹页含 filemoreajax 调用；否则视为单文件页
     if !html.contains("filemoreajax") {
-        if let Some(name) = file_page_name(&html) {
-            // 单文件分享：fn iframe 页由内嵌 WebView 代取直链
-                        let iframe_src = {
-                // find-based 提取（正则 raw string 与 " 转义纠缠，直接字符串查找）
-                let marker = "src=\"/fn?";
-                let i = html.find(marker)?;
-                let start = i + marker.len() - 1; // 指向 "
-                let rest = &html[start + 1..];
-                let end = rest.find('"')?;
-                Some(format!("/fn?{}", &rest[..end]))
-            };
-            let webview_plan = iframe_src.map(|src| {
-                let abs = if src.starts_with("http") {
-                    src
-                } else {
-                    format!("https://{}{}", host_of(&final_url).trim_end_matches('/'), src)
-                };
-                super::WebviewExtractPlan {
-                    url: abs,
-                    js: r##"(()=>{const a=document.querySelector("#tourl a");return a?JSON.stringify(a.href):"";})()"##.into(),
-                    timeout_ms: 20_000,
-                }
-            });
-            return Some(super::Extracted {
-                direct_url: String::new(),
-                filename: name,
-                referer: Some("https://www.lanzou.com/".into()),
-                notice: if webview_plan.is_some() {
-                    None
-                } else {
-                    Some("蓝奏云分享：页面缺少直链生成所需信息，请在官网页面下载".into())
-                },
-                webview_plan,
-            });
-        }
+        return None;
     }
 
-    // 文件夹分享：filemoreajax 列出结构
     let sign = js_field(&html, "sign")?;
     let fid = js_field(&html, "fid")?;
     let uid = js_field(&html, "uid")?;
@@ -147,13 +110,6 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             re_def.captures(&html).and_then(|c| c.get(1)).map(|x| x.as_str().to_string())
         })
         .unwrap_or_default();
-    let file_q = final_url
-        .split("filemoreajax.php?file=")
-        .nth(1)
-        .and_then(|s| s.split('&').next())
-        .map(|s| s.to_string())
-        .or_else(|| js_field(&html, "fid").clone())?;
-    let _ = &file_q;
 
     let ajax_url = format!("https://{}filemoreajax.php?file={}", host_of(&final_url), fid);
     let resp = http
@@ -190,7 +146,84 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     if zt != 1 {
         return None;
     }
-    let items = v.get("text")?.as_array()?;
+    let items = v.get("text")?.as_array()?.clone();
+    if items.is_empty() {
+        return None;
+    }
+    Some((final_url, items))
+}
+
+/// 文件夹内全部单文件页链接（item.id 即短链后缀，引擎批量逐个 add_task 用）
+pub async fn folder_file_urls(url: &str) -> Option<(String, Vec<String>)> {
+    let http = page_client()?;
+    let (final_url, items) = fetch_folder_items(&http, url).await?;
+    let host = host_of(&final_url);
+    let name = url
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or("蓝奏云文件夹")
+        .trim_end_matches('.')
+        .trim()
+        .to_string();
+    let urls = items
+        .iter()
+        .filter_map(|i| i.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .map(|id| format!("{}/{}", host.trim_end_matches('/'), id))
+        .collect();
+    Some((name, urls))
+}
+
+pub async fn resolve(url: &str) -> Option<super::Extracted> {
+    if !is_lanzou(url) {
+        return None;
+    }
+    let http = page_client()?;
+    let resp = http.get(url).send().await.ok()?;
+    let final_url = resp.url().to_string();
+    let html = resp.text().await.ok()?;
+
+    // 单文件页（含 fn iframe）：内嵌 WebView 代取直链
+    if !html.contains("filemoreajax") {
+        if let Some(name) = file_page_name(&html) {
+            let iframe_src = {
+                // find-based 提取（正则 raw string 与 " 转义纠缠，直接字符串查找）
+                let marker = "src=\"/fn?";
+                let i = html.find(marker)?;
+                let start = i + marker.len() - 1; // 指向 "
+                let rest = &html[start + 1..];
+                let end = rest.find('"')?;
+                Some(format!("/fn?{}", &rest[..end]))
+            };
+            let webview_plan = iframe_src.map(|src| {
+                let abs = if src.starts_with("http") {
+                    src
+                } else {
+                    format!("https://{}{}", host_of(&final_url).trim_end_matches('/'), src)
+                };
+                super::WebviewExtractPlan {
+                    url: abs,
+                    js: r##"(()=>{const a=document.querySelector("#tourl a");return a?JSON.stringify(a.href):"";})()"##.into(),
+                    timeout_ms: 20_000,
+                }
+            });
+            return Some(super::Extracted {
+                direct_url: String::new(),
+                filename: name,
+                referer: Some("https://www.lanzou.com/".into()),
+                notice: if webview_plan.is_some() {
+                    None
+                } else {
+                    Some("蓝奏云分享：页面缺少直链生成所需信息，请在官网页面下载".into())
+                },
+                webview_plan,
+            });
+        }
+        return None;
+    }
+
+    // 文件夹分享：列表 + 一键批量引导
+    let (_, items) = fetch_folder_items(&http, url).await?;
     let total = items.len();
     let sample: Vec<String> = items
         .iter()
@@ -215,7 +248,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("{}（{} 个文件{sample_note}）", folder_name.trim_end_matches('.').trim(), total),
         referer: Some("https://www.lanzou.com/".into()),
         notice: Some(
-            "蓝奏云分享：已列出文件夹内容；文件夹直链需逐个文件在官网获取（平台限制）".into(),
+            "蓝奏云文件夹：可一键批量添加前 30 个文件（逐个通过内嵌 WebView 解析直链，速度较慢属预期）".into(),
         ),
         webview_plan: None,
     })
@@ -272,7 +305,7 @@ mod tests {
         println!("lanzou 单文件 plan OK: {} → {}", info.filename, plan.url);
     }
 
-    /// 真实分享（GitHub issue 来源）：文件夹结构列出
+    /// 真实分享（GitHub issue 来源）：文件夹结构列出 + 批量链接列表
     #[tokio::test]
     async fn test_lanzou_real_folder() {
         if std::env::var("FEILIU_NET_TEST").is_err() {
@@ -286,7 +319,17 @@ mod tests {
             "应列出文件夹结构: {}",
             info.filename
         );
-        assert!(info.notice.is_some(), "应有指纹墙提示");
-        println!("lanzou OK: {}", info.filename);
+        assert!(info.notice.is_some(), "应有批量引导提示");
+        let (name, urls) = super::folder_file_urls("https://ydb6.lanzoui.com/s/ydb666")
+            .await
+            .expect("文件夹批量列表失败");
+        assert!(!name.is_empty(), "文件夹名应非空");
+        assert!(!urls.is_empty(), "应产出至少一个文件链接");
+        assert!(
+            urls[0].contains("lanzoui.com/i"),
+            "文件链接应为单文件页形态: {}",
+            urls[0]
+        );
+        println!("lanzou 文件夹 OK: {}（{} 个文件）", name, urls.len());
     }
 }

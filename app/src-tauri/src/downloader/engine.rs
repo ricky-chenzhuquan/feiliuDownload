@@ -380,6 +380,11 @@ impl Inner {
             && (lower.contains("collectiondetail") || lower.contains("seriesdetail"))
         {
             Some("bilibili_collection".to_string())
+        } else if notice.is_some()
+            && (lower.contains("lanzou") || lower.contains("lanzn.com") || lower.contains("lanpv.com"))
+            && lower.contains("/s/")
+        {
+            Some("lanzou_folder".to_string())
         } else {
             None
         };
@@ -445,6 +450,37 @@ impl Inner {
             {
                 Ok(_) => added += 1,
                 Err(_) => skipped += 1, // 下架/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
+    /// 蓝奏云文件夹一键批量：逐个单文件页 WebView 代取直链建任务（上限 30 个）
+    pub async fn add_lanzou_folder(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::lanzou::folder_file_urls(&url)
+            .await
+            .ok_or("文件夹解析失败")?;
+        let cap = 30.min(urls.len()); // 上限 30 个，每个文件一次 WebView 代取
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 代取超时/风控/重复
             }
         }
         Ok(BatchSummary {

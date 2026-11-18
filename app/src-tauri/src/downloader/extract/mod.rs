@@ -11,7 +11,7 @@
 //! - `csdn`：CSDN 下载中心资源（匿名列出资源信息；下载需登录 VIP/积分）
 //! - `netease`：网易云音乐（单曲免登录直链 outer/url；VIP 歌与歌单给出引导）
 //! - `twitter`：Twitter/X 视频推文（syndication API + react-tweet token 算法）
-//! - `lanzou`：蓝奏云分享（结构列出；直链被 TLS 指纹墙拦，notice 引导）
+//! - `lanzou`：蓝奏云分享（单文件 WebView 代取直链；文件夹列表 + 一键批量）
 //! - `dj82`：82DJ 舞曲网（音频 src 前端计算，WebView 代取；直链需 Referer）
 //! - `github`：GitHub Releases（页面链接 → 资产直链/结构，匿名 API 全可用）
 //! - `generic`：通用兜底（og:video / <video src>）
@@ -26,7 +26,7 @@ mod generic;
 mod github;
 pub mod helpers;
 mod kuaishou;
-mod lanzou;
+pub mod lanzou;
 pub mod netease;
 mod twitter;
 mod weibo;

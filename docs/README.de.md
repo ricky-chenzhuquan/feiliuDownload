@@ -27,8 +27,8 @@
 | Video | Twitter / X Video-Tweets | ✅ Direktlink (höchste Bitrate) | ✅ Multi-Thread |
 | Dev | GitHub Releases | ✅ Seite→Assets | ✅ Einzel-Asset direkt (anonyme API) |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
-| Cloud | Lanzou Cloud (Einzeldatei) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
-| Cloud | Aliyun Drive · Baidu Netdisk · CSDN · Lanzou-Ordner | ✅ Struktur | ⚠️ Plattform-Sperren |
+| Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
+| Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |
 
 ## ✨ Funktionen
 ## ✨ Funktionen

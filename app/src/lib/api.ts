@@ -35,7 +35,7 @@ export interface ProbeResult {
   total_size: number;
   accept_ranges: boolean;
   notice: string | null;
-  batch_kind: "netease_playlist" | "bilibili_collection" | null;
+  batch_kind: "netease_playlist" | "bilibili_collection" | "lanzou_folder" | null;
 }
 
 export interface BatchSummary {
@@ -87,6 +87,12 @@ export const addBilibiliCollection = (
   connections?: number,
 ) =>
   invoke<BatchSummary>("add_bilibili_collection", { url, dir, connections });
+
+export const addLanzouFolder = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_lanzou_folder", { url, dir, connections });
 
 export const addTask = (
   url: string,
