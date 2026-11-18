@@ -10,6 +10,7 @@
 //! - `baidu`：百度网盘分享（提取码自动验证 + 匿名列出结构；下载需登录/客户端）
 //! - `csdn`：CSDN 下载中心资源（匿名列出资源信息；下载需登录 VIP/积分）
 //! - `netease`：网易云音乐（单曲免登录直链 outer/url；VIP 歌与歌单给出引导）
+//! - `twitter`：Twitter/X 视频推文（syndication API + react-tweet token 算法）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
@@ -21,6 +22,7 @@ mod generic;
 pub mod helpers;
 mod kuaishou;
 pub mod netease;
+mod twitter;
 mod weibo;
 mod xhs;
 
@@ -74,6 +76,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 网易云音乐（含 163cn.tv 短链）
     if lower.contains("music.163.com") || lower.contains("163cn.tv") {
         return netease::resolve(url).await;
+    }
+    // Twitter/X 视频推文
+    if lower.contains("x.com/") || lower.contains("twitter.com/") {
+        return twitter::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await

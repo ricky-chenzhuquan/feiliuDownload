@@ -43,7 +43,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     for attempt in 0..3 {
         let resp = http.get(url).send().await.ok()?;
         let text = resp.text().await.ok()?;
-        if text.contains("__INITIAL_STATE__") && text.contains("<title>") {
+        if text.contains("<title>") && (text.contains("__INITIAL_STATE__") || text.contains("fileSize")) {
             html = text;
             break;
         }
@@ -65,10 +65,13 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         .filter(|t| !t.is_empty())
         .or_else(|| state_field(&html, r#""title":"([^"]{3,80})""#))?;
 
-    // 大小：fileSize 数字（字节）
+    // 大小：两种页面变体——SSR state 的字节数 / SEO JSON-LD 的 "14.85MB" 字符串
     let size_note = state_field(&html, r#""fileSize":(\d+)"#)
         .and_then(|s| s.parse::<u64>().ok())
         .map(crate::downloader::engine::human_size)
+        .or_else(|| {
+            state_field(&html, r#""fileSize":"([0-9.]+[KMG]?B)""#)
+        })
         .map(|s| format!("（{s}）"))
         .unwrap_or_default();
 

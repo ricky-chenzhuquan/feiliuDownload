@@ -23,6 +23,7 @@
 |---|---|---|---|
 | 视频 | B 站 · 抖音（去水印）· 快手 · 小红书 · 微博 · 通用网页 | ✅ 直链 | ✅ 多线程 |
 | 音乐 | 网易云音乐 | ✅ 单曲/歌单 | ✅ 免费歌直链（VIP 提示），歌单一键批量 |
+| 视频 | Twitter / X 视频推文 | ✅ 直链（自动选最高码率） | ✅ 多线程 |
 | 种子 | 磁力 / .torrent | ✅ | ✅ BT 引擎（DHT） |
 | 网盘 | 阿里云盘 · 百度网盘 · CSDN | ✅ 结构列出 | ⚠️ 需在官网登录转存（平台限制） |
 
@@ -97,7 +98,10 @@ pnpm tauri ios build --target aarch64-sim
 ```bash
 cd app/src-tauri
 cargo test                    # 单元测试
-FEILIU_NET_TEST=1 cargo test # 追加真实网络下载/合并测试
+FEILIU_NET_TEST=1 cargo test -- --test-threads=1  # 追加真实网络测试
+
+# 真实测试直接打各站点线上 CDN，务必串行执行——并行会触发
+# 各站点的风控限流，导致偶发失败
 ```
 
 ## 🔄 自动更新（维护者）

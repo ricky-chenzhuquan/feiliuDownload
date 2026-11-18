@@ -23,6 +23,7 @@
 |---|---|---|---|
 | 動画 | ビリビリ · Douyin（WMなし）· 快手 · 小紅書 · Weibo · 汎用 | ✅ 直リンク | ✅ マルチスレッド |
 | 音楽 | 網易雲音楽 | ✅ 曲/プレイリスト | ✅ 無料曲（VIP は案内）、一括追加 |
+| 動画 | Twitter / X 動画ツイート | ✅ 直リンク（最高ビットレート） | ✅ マルチスレッド |
 | BT | マグネット / .torrent | ✅ | ✅ BT エンジン（DHT） |
 | クラウド | Aliyun Drive · 百度網盤 · CSDN | ✅ 一覧 | ⚠️ サイトでログイン必要 |
 
@@ -97,7 +98,10 @@ pnpm tauri ios build --target aarch64-sim
 ```bash
 cd app/src-tauri
 cargo test                    # 単体テスト
-FEILIU_NET_TEST=1 cargo test # 実ネットワークのダウンロード/マージテストを追加
+FEILIU_NET_TEST=1 cargo test -- --test-threads=1  # 実ネットワークテストを追加
+
+# 実ネットワークテストは各サイトの本番 CDN にアクセスします。
+# 並列実行だとレート制限に引っかかるため必ず直列で実行してください。
 ```
 
 ## 🔄 自動アップデート（メンテナー向け）

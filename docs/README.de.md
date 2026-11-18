@@ -23,6 +23,7 @@
 |---|---|---|---|
 | Video | Bilibili · Douyin (ohne WM) · Kuaishou · Xiaohongshu · Weibo · allgemein | ✅ Direktlink | ✅ Multi-Thread |
 | Musik | NetEase Cloud Music | ✅ Song/Playlist | ✅ freie Songs (VIP → Hinweis), Playlist-Stapel |
+| Video | Twitter / X Video-Tweets | ✅ Direktlink (höchste Bitrate) | ✅ Multi-Thread |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Login auf der Seite nötig |
 
@@ -97,7 +98,10 @@ pnpm tauri ios build --target aarch64-sim
 ```bash
 cd app/src-tauri
 cargo test                    # Unit-Tests
-FEILIU_NET_TEST=1 cargo test # + echte Netzwerk-Download/Merge-Tests
+FEILIU_NET_TEST=1 cargo test -- --test-threads=1  # + echte Netzwerk-Tests
+
+# Die Netzwerk-Tests treffen die echten CDNs der Seiten — immer seriell
+# ausführen, sonst lösen parallele Requests Drosselungen aus.
 ```
 
 ## 🔄 Auto-Update (für Maintainer)
