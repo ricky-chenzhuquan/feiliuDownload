@@ -93,7 +93,7 @@ export default function App() {
       const text = await readClipboard();
       const t = text?.trim() ?? "";
       // 从分享文案中提取链接（如【标题】https://...）
-      const m = t.match(/https?:\/\/[^\s"'）)】]+/i);
+      const m = t.match(/https?:\/\/[!-~]+/i);
       const u = (m ? m[0] : t).trim();
       if (u && u !== lastClipboard.current && /^(https?:\/\/\S+|magnet:\?\S+)/i.test(u)) {
         lastClipboard.current = u;

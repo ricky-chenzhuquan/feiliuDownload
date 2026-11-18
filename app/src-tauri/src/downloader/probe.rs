@@ -93,13 +93,22 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
 
     let mut last_err: Option<String> = None;
     for _attempt in 0..3 {
-        let mut info = if let Some(i) = range_probe(client, target).await {
-            i
-        } else if let Some(i) = head_probe(client, target).await {
-            i
-        } else {
-            last_err = Some("无法访问该地址：连接失败或返回错误状态".to_string());
-            continue;
+        let mut info = {
+            // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
+            let r = range_probe_detail(client, target).await;
+            let h = head_probe_detail(client, target).await;
+            match (r, h) {
+                (Some(i), _) => i,
+                (None, Some(i)) => i,
+                (None, None) => {
+                    eprintln!(
+                        "[feiliu-probe] 两路探测均失败: url={}（详见上方错误行）",
+                        target
+                    );
+                    last_err = Some("无法访问该地址：连接失败或返回错误状态".to_string());
+                    continue;
+                }
+            }
         };
 
         if let Some(ex) = &extracted {
@@ -127,8 +136,17 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
 
 
 
-pub async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
-    let resp = client.head(url).send().await.ok()?;
+pub async fn head_probe_detail(client: &Client, url: &str) -> Option<ProbeInfo> {
+    let resp = match client.head(url).send().await {
+        Ok(r) => {
+            eprintln!("[feiliu-probe] head: status={} url={}", r.status(), url);
+            r
+        }
+        Err(e) => {
+            eprintln!("[feiliu-probe] head 网络错误: url={} err={}", url, e);
+            return None;
+        }
+    };
     if !resp.status().is_success() {
         return None;
     }
@@ -158,13 +176,22 @@ pub async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
     })
 }
 
-pub async fn range_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
-    let resp = client
+pub async fn range_probe_detail(client: &Client, url: &str) -> Option<ProbeInfo> {
+    let resp = match client
         .get(url)
         .header(reqwest::header::RANGE, "bytes=0-0")
         .send()
         .await
-        .ok()?;
+    {
+        Ok(r) => {
+            eprintln!("[feiliu-probe] range: status={} url={}", r.status(), url);
+            r
+        }
+        Err(e) => {
+            eprintln!("[feiliu-probe] range 网络错误: url={} err={}", url, e);
+            return None;
+        }
+    };
     let status = resp.status();
     let headers = resp.headers().clone();
 

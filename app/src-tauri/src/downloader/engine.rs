@@ -927,7 +927,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
     // 校验/恢复：重探测确认远端文件未变化
     if meta.accept_ranges {
         let client = probe::client();
-        if let Some(info) = probe::range_probe(&client, &meta.url).await {
+        if let Some(info) = probe::range_probe_detail(&client, &meta.url).await {
             let changed = info.total_size.is_some_and(|t| t != meta.total_size)
                 || both_present_diff(&info.etag, &meta.etag);
             if changed {
@@ -1756,8 +1756,8 @@ mod tests {
         let client = probe::client();
         let p1 = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
         let p2 = "https://mirrors.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
-        let i1 = probe::range_probe(&client, p1).await.expect("主站探测失败");
-        let i2 = probe::range_probe(&client, p2).await.expect("镜像探测失败");
+        let i1 = probe::range_probe_detail(&client, p1).await.expect("主站探测失败");
+        let i2 = probe::range_probe_detail(&client, p2).await.expect("镜像探测失败");
         let t1 = i1.total_size.expect("主站无大小");
         let t2 = i2.total_size.expect("镜像无大小");
         assert_eq!(t1, t2, "两源大小不一致");
@@ -1881,8 +1881,8 @@ mod tests {
             Err(e) => println!("probe Err: {e}"),
         }
         // 探测子步骤独立复现
-        println!("range_probe: {:?}", probe::range_probe(&client, url).await.is_some());
-        println!("head_probe: {:?}", probe::head_probe(&client, url).await.is_some());
+        println!("range_probe: {:?}", probe::range_probe_detail(&client, url).await.is_some());
+        println!("head_probe: {:?}", probe::head_probe_detail(&client, url).await.is_some());
     }
 
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件

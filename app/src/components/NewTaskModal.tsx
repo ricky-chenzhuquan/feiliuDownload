@@ -79,8 +79,9 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
   /** 从任意粘贴文本中提取第一个链接（兼容【标题】https://... 分享格式） */
   const extractFirstUrl = (raw: string): string => {
     const t = raw.trim();
-    if (/^https?:\/\/\S+$/i.test(t)) return t;
-    const m = t.match(/https?:\/\/[^\s"'）)】]+/i);
+    if (/^https?:\/\/[!-~]+$/i.test(t)) return t;
+    // URL 仅含 ASCII 可见字符：中文文案（逗号/书名号/空格外字符）一律截断
+    const m = t.match(/https?:\/\/[!-~]+/i);
     return m ? m[0] : t;
   };
 
