@@ -377,7 +377,7 @@ impl Inner {
             Some("netease_playlist".to_string())
         } else if notice.is_some()
             && lower.contains("space.bilibili.com")
-            && lower.contains("collectiondetail")
+            && (lower.contains("collectiondetail") || lower.contains("seriesdetail"))
         {
             Some("bilibili_collection".to_string())
         } else {

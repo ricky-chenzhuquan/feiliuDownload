@@ -1,9 +1,11 @@
 //! Bilibili：视频页（含 b23.tv 短链）→ view API → playurl html5 MP4 直链；
-//! space 合集页（collectiondetail?sid=）→ seasons_archives_list 匿名列表 →
-//! 结构摘要 + 一键批量（引擎逐个按单视频流程解析建任务）。
+//! space「合集与列表」页 → 匿名列表 → 结构摘要 + 一键批量（引擎逐个按单视频流程建任务）。
 //!
-//! 实测（2026-11-20）：`seasons_archives_list?mid=&season_id=&page_num=1&page_size=100`
-//! 匿名全通（64 个合集视频一次拿全，含 bvid/title），需带 space Referer。
+//! 实测（2026-11-20）：
+//! - 合集 collectiondetail?sid= → `seasons_archives_list`（meta.name/total + archives，64 个一次拿全）
+//! - 系列 seriesdetail?sid= → `series/archives`（无 meta，page.total + archives；
+//!   系列名匿名拿不到——series/series 接口 147002，用通用占位名）
+//! - 两者均需 space Referer，page_size/ps=100 一次拉全
 use serde::Deserialize;
 
 use super::helpers::{clean_filename, json_client};
@@ -70,6 +72,28 @@ struct BiliSeasonArchive {
     title: Option<String>,
 }
 
+/// series/archives 响应（系列：无 meta，分页信息在 page）
+#[derive(Deserialize)]
+struct BiliSeriesResp {
+    code: i64,
+    #[serde(default)]
+    data: Option<BiliSeriesData>,
+}
+
+#[derive(Deserialize)]
+struct BiliSeriesData {
+    #[serde(default)]
+    page: Option<BiliSeriesPage>,
+    #[serde(default)]
+    archives: Option<Vec<BiliSeasonArchive>>,
+}
+
+#[derive(Deserialize)]
+struct BiliSeriesPage {
+    #[serde(default)]
+    total: Option<i64>,
+}
+
 /// 从 URL 提取 BV 号（BV + 至少 10 位字母数字）
 fn parse_bvid(url: &str) -> Option<String> {
     let idx = url.find("/video/BV")?;
@@ -85,11 +109,20 @@ fn parse_bvid(url: &str) -> Option<String> {
     }
 }
 
-/// 识别 space 合集页并提取 (mid, sid)：
-/// https://space.bilibili.com/{mid}/channel/collectiondetail?sid={sid}[&其他参数]
-fn parse_collection(url: &str) -> Option<(String, String)> {
+/// space「合集与列表」页类型：合集（seasons 接口）/ 系列（series 接口）
+#[derive(Debug, PartialEq)]
+enum SpaceList {
+    /// 合集：(mid, season_id)
+    Season(String, String),
+    /// 系列：(mid, series_id)
+    Series(String, String),
+}
+
+/// 识别 space 合集/系列页并提取 (mid, sid)：
+/// https://space.bilibili.com/{mid}/channel/{collectiondetail|seriesdetail}?sid={sid}[&其他参数]
+fn parse_space_list(url: &str) -> Option<SpaceList> {
     let lower = url.to_lowercase();
-    if !lower.contains("space.bilibili.com") || !lower.contains("collectiondetail") {
+    if !lower.contains("space.bilibili.com") {
         return None;
     }
     let idx = lower.find("space.bilibili.com/")?;
@@ -103,7 +136,13 @@ fn parse_collection(url: &str) -> Option<(String, String)> {
     if sid.is_empty() {
         return None;
     }
-    Some((mid, sid))
+    if lower.contains("collectiondetail") {
+        Some(SpaceList::Season(mid, sid))
+    } else if lower.contains("seriesdetail") {
+        Some(SpaceList::Series(mid, sid))
+    } else {
+        None
+    }
 }
 
 /// 拉取合集列表（匿名 + space Referer；page_size=100 一次拿全）
@@ -120,12 +159,26 @@ async fn fetch_season(http: &reqwest::Client, mid: &str, sid: &str) -> Option<Bi
     .ok()
 }
 
+/// 拉取系列列表（series/archives 匿名；ps=100 一次拿全）
+async fn fetch_series(http: &reqwest::Client, mid: &str, sid: &str) -> Option<BiliSeriesResp> {
+    http.get(format!(
+        "https://api.bilibili.com/x/series/archives?mid={mid}&series_id={sid}&only_normal=1&pn=1&ps=100"
+    ))
+    .header(reqwest::header::REFERER, "https://space.bilibili.com/")
+    .send()
+    .await
+    .ok()?
+    .json()
+    .await
+    .ok()
+}
+
 /// 合集页 → 结构摘要（合集名 + 数量 + 样例标题），notice 引导一键批量
-async fn resolve_collection(
-    http: &reqwest::Client,
-    url: &str,
-) -> Option<super::Extracted> {
-    let (mid, sid) = parse_collection(url)?;
+async fn resolve_collection(http: &reqwest::Client, url: &str) -> Option<super::Extracted> {
+    let (mid, sid) = match parse_space_list(url) {
+        Some(SpaceList::Season(m, s)) => (m, s),
+        _ => return None,
+    };
     let resp = fetch_season(http, &mid, &sid).await?;
     if resp.code != 0 {
         return Some(super::Extracted {
@@ -153,6 +206,52 @@ async fn resolve_collection(
     let meta = data.meta.unwrap_or_default();
     let name = meta.name.unwrap_or_else(|| "合集".into());
     let total = meta.total.unwrap_or(archives.len() as i64);
+    Some(collection_extracted(&name, total, &archives))
+}
+
+/// 系列页 → 结构摘要（系列名匿名 API 不返回，用通用占位 + 数量 + 样例标题）
+async fn resolve_series(http: &reqwest::Client, url: &str) -> Option<super::Extracted> {
+    let (mid, sid) = match parse_space_list(url) {
+        Some(SpaceList::Series(m, s)) => (m, s),
+        _ => return None,
+    };
+    let resp = fetch_series(http, &mid, &sid).await?;
+    if resp.code != 0 {
+        return Some(super::Extracted {
+            direct_url: String::new(),
+            filename: "B站系列".into(),
+            referer: None,
+            notice: Some(format!(
+                "B站系列解析失败（接口 code={}）：系列可能不存在或已失效",
+                resp.code
+            )),
+            webview_plan: None,
+        });
+    }
+    let data = resp.data?;
+    let archives = data.archives?;
+    if archives.is_empty() {
+        return Some(super::Extracted {
+            direct_url: String::new(),
+            filename: "B站系列（空）".into(),
+            referer: None,
+            notice: Some("B站系列：该系列下没有可见视频".into()),
+            webview_plan: None,
+        });
+    }
+    let total = data
+        .page
+        .and_then(|p| p.total)
+        .unwrap_or(archives.len() as i64);
+    Some(collection_extracted("B站系列", total, &archives))
+}
+
+/// 合集/系列共用的结构摘要产出
+fn collection_extracted(
+    name: &str,
+    total: i64,
+    archives: &[BiliSeasonArchive],
+) -> super::Extracted {
     let sample: Vec<String> = archives
         .iter()
         .take(3)
@@ -163,45 +262,67 @@ async fn resolve_collection(
     } else {
         format!("，如《{}》等", sample.join("》《"))
     };
-    Some(super::Extracted {
+    super::Extracted {
         direct_url: String::new(),
         filename: clean_filename(&format!("{name}（{total} 个视频{sample_note}）"), "")
             .trim_end_matches('.')
             .to_string(),
         referer: Some("https://www.bilibili.com/".into()),
         notice: Some(
-            "B站合集：可一键批量添加前 30 个视频（自动逐个解析直链建任务，上限 30 防直链过期）".into(),
+            "B站合集/系列：可一键批量添加前 30 个视频（自动逐个解析直链建任务，上限 30 防直链过期）".into(),
         ),
         webview_plan: None,
-    })
+    }
 }
 
-/// 合集内全部视频页链接（引擎批量逐个 add_task 用）
+/// 合集/系列内全部视频页链接（引擎批量逐个 add_task 用）
 pub async fn collection_video_urls(url: &str) -> Option<(String, Vec<String>)> {
     let http = json_client()?;
-    let (mid, sid) = parse_collection(url)?;
-    let resp = fetch_season(&http, &mid, &sid).await?;
-    if resp.code != 0 {
-        return None;
+    match parse_space_list(url)? {
+        SpaceList::Season(mid, sid) => {
+            let resp = fetch_season(&http, &mid, &sid).await?;
+            if resp.code != 0 {
+                return None;
+            }
+            let data = resp.data?;
+            let archives = data.archives?;
+            let name = data
+                .meta
+                .and_then(|m| m.name)
+                .unwrap_or_else(|| "合集".into());
+            Some((
+                name,
+                archives
+                    .iter()
+                    .map(|a| format!("https://www.bilibili.com/video/{}", a.bvid))
+                    .collect(),
+            ))
+        }
+        SpaceList::Series(mid, sid) => {
+            let resp = fetch_series(&http, &mid, &sid).await?;
+            if resp.code != 0 {
+                return None;
+            }
+            let data = resp.data?;
+            let archives = data.archives?;
+            Some((
+                "B站系列".to_string(),
+                archives
+                    .iter()
+                    .map(|a| format!("https://www.bilibili.com/video/{}", a.bvid))
+                    .collect(),
+            ))
+        }
     }
-    let data = resp.data?;
-    let archives = data.archives?;
-    let name = data
-        .meta
-        .and_then(|m| m.name)
-        .unwrap_or_else(|| "合集".into());
-    let urls = archives
-        .iter()
-        .map(|a| format!("https://www.bilibili.com/video/{}", a.bvid))
-        .collect();
-    Some((name, urls))
 }
 
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
     let http = json_client()?;
-    // 合集页：结构摘要 + 批量引导（不产直链，由引擎逐个解析单视频）
-    if parse_collection(url).is_some() {
-        return resolve_collection(&http, url).await;
+    // 合集/系列页：结构摘要 + 批量引导（不产直链，由引擎逐个解析单视频）
+    match parse_space_list(url) {
+        Some(SpaceList::Season(_, _)) => return resolve_collection(&http, url).await,
+        Some(SpaceList::Series(_, _)) => return resolve_series(&http, url).await,
+        None => {}
     }
     let page = if url.to_lowercase().contains("b23.tv/") {
         super::helpers::follow_redirect(&http, url).await.unwrap_or_else(|| url.to_string())
@@ -264,33 +385,34 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_collection() {
+    fn test_parse_space_list() {
+        use super::SpaceList;
+        // 合集页：基础形态与附加参数形态
         assert_eq!(
-            super::parse_collection(
+            super::parse_space_list(
                 "https://space.bilibili.com/503344993/channel/collectiondetail?sid=416786"
             ),
-            Some(("503344993".into(), "416786".into()))
+            Some(SpaceList::Season("503344993".into(), "416786".into()))
         );
-        // 带附加参数与 &sid= 形态
         assert_eq!(
-            super::parse_collection(
+            super::parse_space_list(
                 "https://space.bilibili.com/503344993/channel/collectiondetail?spm_id_from=1&sid=416786"
             ),
-            Some(("503344993".into(), "416786".into()))
+            Some(SpaceList::Season("503344993".into(), "416786".into()))
         );
-        // 非合集页一律不识别
+        // 系列页（可能带 seid 附加参数）
         assert_eq!(
-            super::parse_collection("https://www.bilibili.com/video/BV1GJ411x7h7"),
+            super::parse_space_list(
+                "https://space.bilibili.com/1369507485/channel/seriesdetail?sid=2249610&seid=123"
+            ),
+            Some(SpaceList::Series("1369507485".into(), "2249610".into()))
+        );
+        // 非合集/系列页一律不识别
+        assert_eq!(
+            super::parse_space_list("https://www.bilibili.com/video/BV1GJ411x7h7"),
             None
         );
-        assert_eq!(
-            super::parse_collection("https://space.bilibili.com/503344993"),
-            None
-        );
-        assert_eq!(
-            super::parse_collection("https://space.bilibili.com/503344993/channel/seriesdetail?sid=1"),
-            None
-        );
+        assert_eq!(super::parse_space_list("https://space.bilibili.com/503344993"), None);
     }
 
     /// 真实合集（Python 数学建模系列讲座）：结构摘要 + 批量视频列表
@@ -320,5 +442,33 @@ mod tests {
             urls[0]
         );
         println!("bilibili 合集 OK: {}（{} 个视频）", name, urls.len());
+    }
+
+    /// 真实系列（王树森推荐系统课程）：结构摘要 + 批量视频列表
+    #[tokio::test]
+    async fn test_bilibili_real_series() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let url = "https://space.bilibili.com/1369507485/channel/seriesdetail?sid=2249610";
+        let info = super::super::resolve(url)
+            .await
+            .expect("B站系列解析失败");
+        assert!(
+            info.filename.contains("个视频"),
+            "应解析出视频数摘要: {}",
+            info.filename
+        );
+        assert!(info.notice.is_some(), "系列应有批量引导提示");
+        let (_, urls) = super::collection_video_urls(url)
+            .await
+            .expect("系列视频列表获取失败");
+        assert!(urls.len() >= 20, "该系列应有 20+ 视频: {}", urls.len());
+        assert!(
+            urls[0].contains("BV1PS4y1A7za"),
+            "首个视频 bvid 应正确: {}",
+            urls[0]
+        );
+        println!("bilibili 系列 OK（{} 个视频）", urls.len());
     }
 }

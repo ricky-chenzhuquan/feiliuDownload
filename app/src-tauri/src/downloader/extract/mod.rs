@@ -1,7 +1,7 @@
 //! 站点解析层：把视频/网盘分享页地址解析为可直接下载的媒体流地址。
 //!
 //! 模块结构（每站点一个文件，统一走 `Extracted`）：
-//! - `bilibili`：B 站视频页（含 b23.tv 短链）与 space 合集页（一键批量）
+//! - `bilibili`：B 站视频页（含 b23.tv 短链）与 space 合集/系列页（一键批量）
 //! - `douyin`：抖音（含 v.douyin.com 短链，ttwid Cookie 方案，去水印）
 //! - `kuaishou`：快手
 //! - `xhs`：小红书（含 xhslink.cn/.com 短链）

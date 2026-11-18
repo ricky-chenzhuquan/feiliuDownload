@@ -21,7 +21,7 @@
 
 | Type | Sites | Parse | Download |
 |---|---|---|---|
-| Video | Bilibili (incl. one-click collection batch) · Douyin (watermark-free) · Kuaishou · Xiaohongshu · Weibo · generic pages | ✅ direct link | ✅ multi-thread |
+| Video | Bilibili (incl. one-click collection/series batch) · Douyin (watermark-free) · Kuaishou · Xiaohongshu · Weibo · generic pages | ✅ direct link | ✅ multi-thread |
 | Music | NetEase Cloud Music | ✅ song/playlist | ✅ free songs (VIP → notice), playlist batch |
 | Music | 82DJ | ✅ song page | ✅ WebView-resolved stream + Referer |
 | Video | Twitter / X video posts | ✅ direct link (highest bitrate) | ✅ multi-thread |
