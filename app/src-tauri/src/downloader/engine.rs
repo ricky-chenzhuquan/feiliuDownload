@@ -1856,6 +1856,35 @@ mod tests {
         }
     }
 
+    /// 82dj 完整 probe 全路径复现（用户报错 play/31529）
+    #[tokio::test]
+    async fn test_82dj_full_probe() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let client = probe::client();
+        let url = "https://www.82dj.com/play/31529";
+        // 先单测 extract 层
+        let ex = crate::downloader::extract::resolve(url).await;
+        println!("extract 层: {}", if ex.is_some() { "Some ✓" } else { "None ✗" });
+        // 完整 probe
+        match probe::probe(&client, url).await {
+            Ok(info) => {
+                println!(
+                    "probe OK: filename={:?} resolved={:?} notice={:?} plan={}",
+                    info.filename,
+                    info.resolved_url.is_some(),
+                    info.notice.is_some(),
+                    info.webview_plan.is_some()
+                );
+            }
+            Err(e) => println!("probe Err: {e}"),
+        }
+        // 探测子步骤独立复现
+        println!("range_probe: {:?}", probe::range_probe(&client, url).await.is_some());
+        println!("head_probe: {:?}", probe::head_probe(&client, url).await.is_some());
+    }
+
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件
     #[tokio::test]
     async fn test_html_page_friendly_error() {

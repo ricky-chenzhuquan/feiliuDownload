@@ -76,7 +76,14 @@ pub struct ProbeInfo {
 /// 的 HEAD 会返回错误长度），失败退回 HEAD。整体失败重试一次（应对
 /// snssdk 等站点的间歇性首连失败）。
 pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
-    let extracted = crate::downloader::extract::resolve(url).await;
+    // 站点解析对瞬态网络失败也重试一次（82dj/snssdk 等间歇超时实测）
+    let extracted = match crate::downloader::extract::resolve(url).await {
+        Some(e) => Some(e),
+        None => {
+            tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+            crate::downloader::extract::resolve(url).await
+        }
+    };
     // direct_url 为空（如网盘/歌单仅列结构）→ 用原页面 URL 探测
     let target = extracted
         .as_ref()
@@ -85,7 +92,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         .unwrap_or(url);
 
     let mut last_err: Option<String> = None;
-    for _attempt in 0..2 {
+    for _attempt in 0..3 {
         let mut info = if let Some(i) = range_probe(client, target).await {
             i
         } else if let Some(i) = head_probe(client, target).await {
@@ -120,7 +127,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
 
 
 
-async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
+pub async fn head_probe(client: &Client, url: &str) -> Option<ProbeInfo> {
     let resp = client.head(url).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
