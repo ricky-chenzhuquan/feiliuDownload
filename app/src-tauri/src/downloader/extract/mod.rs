@@ -13,6 +13,7 @@
 //! - `twitter`：Twitter/X 视频推文（syndication API + react-tweet token 算法）
 //! - `lanzou`：蓝奏云分享（结构列出；直链被 TLS 指纹墙拦，notice 引导）
 //! - `dj82`：82DJ 舞曲网（音频 src 前端计算，WebView 代取；直链需 Referer）
+//! - `github`：GitHub Releases（页面链接 → 资产直链/结构，匿名 API 全可用）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
@@ -22,6 +23,7 @@ mod dj82;
 mod bilibili;
 mod douyin;
 mod generic;
+mod github;
 pub mod helpers;
 mod kuaishou;
 mod lanzou;
@@ -103,6 +105,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 蓝奏云分享（系列域名，子域多变）
     if lower.contains("lanzou") || lower.contains("lanzn.com") || lower.contains("lanpv.com") {
         return lanzou::resolve(url).await;
+    }
+    // GitHub Releases（页面链接 → 资产结构/直链）
+    if lower.contains("github.com/") && lower.contains("/releases") {
+        return github::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await

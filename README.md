@@ -25,6 +25,7 @@
 | Music | NetEase Cloud Music | ✅ song/playlist | ✅ free songs (VIP → notice), playlist batch |
 | Music | 82DJ | ✅ song page | ✅ WebView-resolved stream + Referer |
 | Video | Twitter / X video posts | ✅ direct link (highest bitrate) | ✅ multi-thread |
+| Dev | GitHub Releases | ✅ page → assets | ✅ single-asset direct (anonymous API) |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN · Lanzou folders | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
