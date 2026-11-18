@@ -33,6 +33,7 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [mobile, setMobile] = useState(false);
   const [clipboardWatch, setClipboardWatch] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const speedSamples = useRef<Map<string, number[]>>(new Map());
   const prevStatus = useRef<Map<string, TaskStatus>>(new Map());
@@ -142,8 +143,33 @@ export default function App() {
   const hasActive = tasks.some((t) => t.status === "downloading" || t.status === "queued");
   const hasResumable = tasks.some((t) => t.status === "paused" || t.status === "failed");
 
+  // 拖拽链接到窗口：drop 后提取 URL 弹新建任务
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const text =
+      e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain") || "";
+    // URL 仅含 ASCII 可见字符（与粘贴提取同规则）
+    const m = text.match(/https?:\/\/[!-~]+/i);
+    const u = (m ? m[0] : text).trim();
+    if (u && /^(https?:\/\/\S+|magnet:\?\S+)/i.test(u)) {
+      setModalUrl(u);
+      setModalOpen(true);
+    }
+  };
+
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${dragOver ? "drag-over" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={onDrop}
+    >
       <Sidebar view={view} onView={setView} tasks={tasks} />
       <main className="content">
         {view === "settings" ? (
@@ -226,6 +252,12 @@ export default function App() {
           </>
         )}
       </main>
+
+      {dragOver && (
+        <div className="drag-overlay">
+          <div className="drag-hint">⚡ 松开鼠标，添加下载任务</div>
+        </div>
+      )}
 
       <NewTaskModal
         open={modalOpen}
