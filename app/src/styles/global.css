@@ -719,6 +719,36 @@ select {
   flex-shrink: 0;
 }
 
+.task-detail {
+  flex-basis: 100%;
+  margin-top: 10px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.td-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.td-label {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 60px;
+}
+
+.td-value {
+  color: var(--text-dim);
+  word-break: break-all;
+  user-select: text;
+}
+
 .spark {
   display: block;
   margin-top: 7px;

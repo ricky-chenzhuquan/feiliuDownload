@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { TaskSnapshot } from "../lib/api";
 import { pauseTask, resumeTask, deleteTask, revealPath } from "../lib/api";
-import { formatBytes, formatEta, formatSpeed, kindOf, KIND_COLORS } from "../lib/format";
+import { formatBytes, formatEta, formatSpeed, kindOf, timeShort, KIND_COLORS } from "../lib/format";
 import {
   IconAlert,
   IconFolder,
@@ -60,6 +60,7 @@ export default function TaskCard({
 }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   // 右键菜单打开时点击任意处关闭
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function TaskCard({
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
+        onClick={() => setExpanded((v) => !v)}
       >
         <div className="task-icon" style={{ background: colors.bg, color: colors.fg }}>
           <span>{ext.toUpperCase()}</span>
@@ -207,6 +209,23 @@ export default function TaskCard({
             <IconTrash />
           </button>
         </div>
+
+        {expanded && (
+          <div className="task-detail">
+            <div className="td-row">
+              <span className="td-label">链接</span>
+              <span className="td-value" title={task.url}>{task.url}</span>
+            </div>
+            <div className="td-row">
+              <span className="td-label">保存位置</span>
+              <span className="td-value" title={task.save_path}>{task.save_path}</span>
+            </div>
+            <div className="td-row">
+              <span className="td-label">添加时间</span>
+              <span className="td-value">{timeShort(task.created_at)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {menu && (
