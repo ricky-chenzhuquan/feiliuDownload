@@ -23,6 +23,7 @@
 |---|---|---|---|
 | Video | Bilibili · Douyin (watermark-free) · Kuaishou · Xiaohongshu · Weibo · generic pages | ✅ direct link | ✅ multi-thread |
 | Music | NetEase Cloud Music | ✅ song/playlist | ✅ free songs (VIP → notice), playlist batch |
+| Music | 82DJ | ✅ song page | ✅ WebView-resolved stream + Referer |
 | Video | Twitter / X video posts | ✅ direct link (highest bitrate) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file) | ✅ direct link | ✅ in-app WebView assist |

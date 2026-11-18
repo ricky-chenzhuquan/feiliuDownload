@@ -12,11 +12,13 @@
 //! - `netease`：网易云音乐（单曲免登录直链 outer/url；VIP 歌与歌单给出引导）
 //! - `twitter`：Twitter/X 视频推文（syndication API + react-tweet token 算法）
 //! - `lanzou`：蓝奏云分享（结构列出；直链被 TLS 指纹墙拦，notice 引导）
+//! - `dj82`：82DJ 舞曲网（音频 src 前端计算，WebView 代取；直链需 Referer）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
 mod baidu;
 mod csdn;
+mod dj82;
 mod bilibili;
 mod douyin;
 mod generic;
@@ -85,6 +87,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // CSDN 下载中心
     if lower.contains("download.csdn.net") {
         return csdn::resolve(url).await;
+    }
+    // 82DJ 舞曲网（WebView 代取音频直链）
+    if lower.contains("82dj.com") {
+        return dj82::resolve(url).await;
     }
     // 网易云音乐（含 163cn.tv 短链）
     if lower.contains("music.163.com") || lower.contains("163cn.tv") {
