@@ -2,6 +2,17 @@
 use super::helpers::{clean_filename, MOBILE_UA};
 
 /// 扫描页面全部 ld+json 块，找 @type=VideoObject 的 contentUrl
+/// 提取首个 <audio src="http...">
+fn find_audio_src(html: &str) -> Option<String> {
+    let pos = html.find("<audio")?;
+    let seg = &html[pos..(pos + 2000).min(html.len())];
+    let i = seg.find("src=\"")?;
+    let rest = &seg[i + "src=\"".len()..];
+    let end = rest.find('"')?;
+    let u = &rest[..end];
+    u.starts_with("http").then(|| u.to_string())
+}
+
 fn find_jsonld_video(html: &str) -> Option<String> {
     let mut from = 0;
     while let Some(rel) = html[from..].find("application/ld+json") {
@@ -113,6 +124,16 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             webview_plan: None,
         });
     }
+    // <audio ... src="...">（音乐博客等，audio 标签同样常见）
+    if let Some(u) = find_audio_src(&html) {
+        return Some(super::Extracted {
+            direct_url: u,
+            filename: clean_filename("page_audio", "mp3"),
+            referer: None,
+            notice: None,
+            webview_plan: None,
+        });
+    }
     // <video ... src="...">
     // <video ... src="...">
     if let Some(pos) = html.find("<video") {
@@ -152,6 +173,15 @@ mod tests {
     fn test_jsonld_video_object_missing_type() {
         let html = r#"<script type="application/ld+json">{"@type":"Article","name":"不是视频"}</script>"#;
         assert_eq!(super::find_jsonld_video(html), None);
+    }
+
+    #[test]
+    fn test_audio_tag() {
+        let html = r#"<audio controls src="https://cdn.blog.com/song.mp3"></audio>"#;
+        assert_eq!(
+            super::find_audio_src(html),
+            Some("https://cdn.blog.com/song.mp3".into())
+        );
     }
 
     #[test]

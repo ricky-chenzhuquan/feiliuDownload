@@ -72,7 +72,7 @@ pub fn run() {
             // dev 构建：启动 6 秒后自动执行一次 WebView 代取自检（82dj），
             // 用于端到端定位「卡添加中」——结果写入日志 [feiliu-selftest]
             #[cfg(debug_assertions)]
-            {
+            if std::env::var("FEILIU_SELFTEST").is_ok() {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_secs(6)).await;
