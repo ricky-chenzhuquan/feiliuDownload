@@ -428,6 +428,16 @@ impl Inner {
             return self.add_torrent_task(url, dir, settings.download_dir.clone()).await;
         }
         let client = probe::client();
+        // 防重复：同 URL（含 WebView 代取后的直链对比）已在列表中 → 拒绝
+        {
+            let tasks = self.tasks.lock().unwrap();
+            let dup = tasks
+                .values()
+                .any(|t| t.meta.read().unwrap().url == url);
+            if dup {
+                return Err("该链接已在任务列表中，请勿重复添加".into());
+            }
+        }
         let info = probe::probe(&client, &url).await?;
         // 站点限制（如阿里云盘需登录转存）→ 不创建任务
         if let Some(notice) = &info.notice {
@@ -1677,6 +1687,29 @@ fn default_download_dir(app: &AppHandle) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 防重复：同 URL 二次添加被拒（通过 add_task 完整流程验证）
+    #[tokio::test]
+    async fn test_add_task_duplicate_url() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let mgr = TaskManager::new();
+        // 构造设置指向临时目录
+        let dir = std::env::temp_dir().join(format!("feiliu_dup_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        mgr.inner.update_settings(crate::downloader::types::Settings {
+            download_dir: dir.to_string_lossy().into_owned(),
+            ..Default::default()
+        });
+        let url = "https://proof.ovh.net/files/10Mb.dat";
+        let first = mgr.inner.add_task(url.into(), vec![], None, None, Some(2)).await;
+        assert!(first.is_ok(), "首次添加应成功: {:?}", first.err());
+        let second = mgr.inner.add_task(url.into(), vec![], None, None, Some(2)).await;
+        let err = second.expect_err("二次添加应被拒");
+        assert!(err.contains("重复"), "错误应提示重复: {err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn test_chunk_len() {
