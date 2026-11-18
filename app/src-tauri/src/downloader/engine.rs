@@ -369,17 +369,27 @@ impl Inner {
         let client = probe::client();
         let info = probe::probe(&client, url).await?;
         let notice = info.notice.clone();
-        // 网易云歌单支持一键批量
+        // 网易云歌单 / B 站合集支持一键批量（batch_kind 告诉前端调哪个命令）
         let lower = url.to_lowercase();
-        let batchable_playlist = notice.is_some()
-            && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"));
+        let batch_kind = if notice.is_some()
+            && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"))
+        {
+            Some("netease_playlist".to_string())
+        } else if notice.is_some()
+            && lower.contains("space.bilibili.com")
+            && lower.contains("collectiondetail")
+        {
+            Some("bilibili_collection".to_string())
+        } else {
+            None
+        };
         Ok(ProbeResult {
             url: info.resolved_url.clone().unwrap_or_else(|| url.to_string()),
             filename: info.filename.unwrap_or_else(|| fallback_filename(url)),
             total_size: info.total_size.unwrap_or(0),
             accept_ranges: info.accept_ranges,
             notice,
-            batchable_playlist,
+            batch_kind,
             webview_plan: info.webview_plan.clone(),
         })
     }
@@ -404,6 +414,37 @@ impl Inner {
             {
                 Ok(_) => added += 1,
                 Err(_) => skipped += 1, // VIP 歌或探测失败
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
+    /// B 站合集一键批量：逐个解析单视频直链建任务（上限 30 个防直链过期）
+    pub async fn add_bilibili_collection(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::bilibili::collection_video_urls(&url)
+            .await
+            .ok_or("合集解析失败")?;
+        let cap = 30.min(urls.len()); // 上限 30 个，B 站 CDN 直链有时效
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 下架/风控/重复
             }
         }
         Ok(BatchSummary {

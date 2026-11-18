@@ -47,6 +47,7 @@ pub fn run() {
             commands::probe_url,
             commands::probe_mirrors,
             commands::add_netease_playlist,
+            commands::add_bilibili_collection,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,

@@ -28,6 +28,20 @@ pub async fn add_netease_playlist(
         .await
 }
 
+/// B 站合集一键批量：逐个解析直链建任务，上限 30 个
+#[tauri::command]
+pub async fn add_bilibili_collection(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_bilibili_collection(url, dir, connections)
+        .await
+}
+
 /// 镜像测速：并行采样各镜像 256KB，返回可达性与速度
 #[tauri::command]
 pub async fn probe_mirrors(

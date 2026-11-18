@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   addTask,
   addNeteasePlaylist,
+  addBilibiliCollection,
   getSettings,
   isMobile,
   pickFolder,
@@ -148,10 +149,14 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
     if (!probe || batching) return;
     setBatching(true);
     try {
-      const r = await addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
+      const isBili = probe.batch_kind === "bilibili_collection";
+      const r = isBili
+        ? await addBilibiliCollection(probe.url, dir.trim() || undefined, connections)
+        : await addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
+      const unit = isBili ? "个" : "首";
       setBatchMsg(
-        `已添加 ${r.added} 首，跳过 ${r.skipped} 首（VIP/失败）` +
-          (r.truncated ? "；歌单较长已截取前 30 首" : ""),
+        `已添加 ${r.added} ${unit}，跳过 ${r.skipped} ${unit}（失败/重复）` +
+          (r.truncated ? `；较长已截取前 30 ${unit}` : ""),
       );
       onAdded();
     } catch (e) {
@@ -284,13 +289,17 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
             <IconAlert size={15} /> <div>
               <b>{probe.filename}</b>
               <div className="notice-text">{probe.notice}</div>
-              {probe.batchable_playlist && !batchMsg && (
+              {probe.batch_kind && !batchMsg && (
                 <button
                   className="btn primary sm batch-btn"
                   onClick={batchAdd}
                   disabled={batching}
                 >
-                  {batching ? "逐首解析添加中…" : "⚡ 一键添加免费歌曲（上限 30 首）"}
+                  {batching
+                    ? "解析添加中…"
+                    : probe.batch_kind === "bilibili_collection"
+                      ? "⚡ 一键添加合集视频（前 30 个）"
+                      : "⚡ 一键添加免费歌曲（上限 30 首）"}
                 </button>
               )}
               {batchMsg && <div className="notice-ok">{batchMsg}</div>}

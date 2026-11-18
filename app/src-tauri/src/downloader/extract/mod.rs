@@ -1,7 +1,7 @@
 //! 站点解析层：把视频/网盘分享页地址解析为可直接下载的媒体流地址。
 //!
 //! 模块结构（每站点一个文件，统一走 `Extracted`）：
-//! - `bilibili`：B 站视频页（含 b23.tv 短链）
+//! - `bilibili`：B 站视频页（含 b23.tv 短链）与 space 合集页（一键批量）
 //! - `douyin`：抖音（含 v.douyin.com 短链，ttwid Cookie 方案，去水印）
 //! - `kuaishou`：快手
 //! - `xhs`：小红书（含 xhslink.cn/.com 短链）
@@ -20,7 +20,7 @@ mod alipan;
 mod baidu;
 mod csdn;
 mod dj82;
-mod bilibili;
+pub mod bilibili;
 mod douyin;
 mod generic;
 mod github;
@@ -55,8 +55,11 @@ pub struct Extracted {
 /// 识别并解析；非支持的站点返回 None（走普通 HTTP 下载）
 pub async fn resolve(url: &str) -> Option<Extracted> {
     let lower = url.to_lowercase();
-    // B 站（含 b23.tv 短链）
-    if lower.contains("bilibili.com/video") || lower.contains("b23.tv/") {
+    // B 站（视频页 + b23.tv 短链 + space 合集页）
+    if lower.contains("bilibili.com/video")
+        || lower.contains("b23.tv/")
+        || lower.contains("space.bilibili.com")
+    {
         return bilibili::resolve(url).await;
     }
     // 抖音（含 v.douyin.com 短链）

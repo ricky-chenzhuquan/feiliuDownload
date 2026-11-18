@@ -30,9 +30,9 @@ pub struct ProbeResult {
     /// 站点限制提示（如歌单需逐首/网盘需登录）；有值时不允许普通添加
     #[serde(default)]
     pub notice: Option<String>,
-    /// 是否支持一键批量添加（网易云歌单）
+    /// 一键批量添加类型（netease_playlist 网易云歌单 / bilibili_collection B 站合集）
     #[serde(default)]
-    pub batchable_playlist: bool,
+    pub batch_kind: Option<String>,
     /// WebView 代取计划（82dj 等），前端展示「正在代取」状态用
     #[serde(default)]
     pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
