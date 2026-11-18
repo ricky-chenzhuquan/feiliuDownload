@@ -10,3 +10,4 @@ app/src-tauri/gen/schemas/
 website/releases/
 *.private
 app/src-tauri/gen/apple/build/
+.distill-round

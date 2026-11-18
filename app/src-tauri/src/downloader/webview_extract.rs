@@ -74,17 +74,37 @@ pub async fn extract(
         let Ok(value) = rx.await else {
             continue;
         };
-        let trimmed = value.trim().trim_matches('"').to_string();
+        // 回调值是多层 stringify 的产物：去掉转义斜杠（\/）与首尾引号
+        // 回调值是多层 stringify 的产物：字符级 unescape（\/ → /、\" → "），
+        // 避免字面量转义歧义
+        let raw = value.trim().trim_matches('"');
+        let chars: Vec<char> = raw.chars().collect();
+        let mut out = String::new();
+        let mut i = 0usize;
+        while i < chars.len() {
+            if chars[i] == '\\' && i + 1 < chars.len() {
+                match chars[i + 1] {
+                    '/' => { out.push('/'); i += 2; }
+                    '"' => { out.push('"'); i += 2; }
+                    _ => { out.push(chars[i]); i += 1; }
+                }
+            } else {
+                out.push(chars[i]);
+                i += 1;
+            }
+        }
+        // unescape 后（\" → "）还剩内层包裹引号，再去一次
+        let cleaned = out.trim().trim_matches('"').to_string();
         eprintln!(
             "[feiliu-webview] 第 {} 次轮询结果: {}",
             attempts,
-            &trimmed[..80.min(trimmed.len())]
+            &cleaned[..80.min(cleaned.len())]
         );
-        if !trimmed.is_empty() && trimmed != "null" && trimmed != "undefined" {
+        if cleaned.starts_with("http") || cleaned.starts_with("magnet:") {
             let _ = window.close();
             let mut slot = result.lock().unwrap();
-            *slot = Some(trimmed.clone());
-            return Ok(trimmed);
+            *slot = Some(cleaned.clone());
+            return Ok(cleaned);
         }
         // 页面还在生成直链（fn 页 ajax 未完成 / audio src 未设置），继续轮询
         let _ = result;

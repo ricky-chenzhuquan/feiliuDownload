@@ -69,6 +69,35 @@ pub fn run() {
             let mgr = app.state::<TaskManager>();
             mgr.inner.set_app(app.handle().clone());
 
+            // dev 构建：启动 6 秒后自动执行一次 WebView 代取自检（82dj），
+            // 用于端到端定位「卡添加中」——结果写入日志 [feiliu-selftest]
+            #[cfg(debug_assertions)]
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+                    eprintln!("[feiliu-selftest] 开始 WebView 代取自检（82dj/play/31534）");
+                    let plan = downloader::extract::WebviewExtractPlan {
+                        url: "https://www.82dj.com/play/31534".into(),
+                        js: r##"(()=>{const a=document.querySelector("audio");return a?JSON.stringify(a.currentSrc||a.src||""):"";})()"##.into(),
+                        timeout_ms: 15_000,
+                    };
+                    let started = std::time::Instant::now();
+                    match downloader::webview_extract::extract(handle, &plan).await {
+                        Ok(u) => eprintln!(
+                            "[feiliu-selftest] 成功 {:.1}s 直链长度={}",
+                            started.elapsed().as_secs_f64(),
+                            u.len()
+                        ),
+                        Err(e) => eprintln!(
+                            "[feiliu-selftest] 失败 {:.1}s err={}",
+                            started.elapsed().as_secs_f64(),
+                            e
+                        ),
+                    }
+                });
+            }
+
             // 桌面端：托盘常驻（左键点击显示窗口，菜单可退出）
             #[cfg(desktop)]
             {
