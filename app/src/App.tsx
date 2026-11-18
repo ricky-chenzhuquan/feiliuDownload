@@ -30,6 +30,7 @@ export default function App() {
   const [modalUrl, setModalUrl] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [filter, setFilter] = useState("");
   const [mobile, setMobile] = useState(false);
   const [clipboardWatch, setClipboardWatch] = useState(false);
 
@@ -134,6 +135,9 @@ export default function App() {
 
   const visible = tasks.filter((t) =>
     view === "completed" ? t.status === "completed" : t.status !== "completed",
+  ).filter((t) =>
+    filter.trim() === "" ||
+    t.filename.toLowerCase().includes(filter.trim().toLowerCase()),
   );
   const hasActive = tasks.some((t) => t.status === "downloading" || t.status === "queued");
   const hasResumable = tasks.some((t) => t.status === "paused" || t.status === "failed");
@@ -164,6 +168,12 @@ export default function App() {
 
             <div className="content-head">
               <h1>{view === "completed" ? "已完成" : "下载中"}</h1>
+              <input
+                className="text-input task-filter"
+                placeholder="按文件名过滤…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
               <div className="head-actions">
                 {view === "active" && hasActive && (
                   <button className="btn ghost" onClick={() => pauseAllTasks().catch(() => {})}>

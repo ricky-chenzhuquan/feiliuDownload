@@ -185,6 +185,12 @@ select {
   font-weight: 700;
 }
 
+.task-filter {
+  width: 220px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+}
+
 .head-actions {
   display: flex;
   gap: 10px;
