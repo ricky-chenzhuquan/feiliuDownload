@@ -6,6 +6,7 @@ import SettingsView from "./components/SettingsView";
 import { IconAlert, IconPause, IconPlay, IconPlus } from "./components/Icons";
 import {
   checkForUpdate,
+  clearCompletedTasks,
   isMobile,
   listTasks,
   notify,
@@ -174,6 +175,18 @@ export default function App() {
                     <IconPlay size={15} /> 全部继续
                   </button>
                 )}
+                {view === "completed" &&
+                  tasks.some((t) => t.status === "completed") && (
+                    <button
+                      className="btn ghost"
+                      onClick={async () => {
+                        const n = await clearCompletedTasks().catch(() => 0);
+                        if (n > 0) void notify("已清除", `${n} 个已完成任务已移出列表（文件保留）`);
+                      }}
+                    >
+                      清除已完成
+                    </button>
+                  )}
                 <button className="btn primary" onClick={() => { setModalUrl(""); setModalOpen(true); }}>
                   <IconPlus size={16} /> 新建下载
                 </button>

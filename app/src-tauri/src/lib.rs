@@ -51,6 +51,7 @@ pub fn run() {
             commands::pause_task,
             commands::resume_task,
             commands::pause_all_tasks,
+            commands::clear_completed_tasks,
             commands::resume_all_tasks,
             commands::delete_task,
             commands::list_tasks,

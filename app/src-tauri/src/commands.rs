@@ -77,6 +77,13 @@ pub async fn resume_task(state: State<'_, TaskManager>, id: String) -> Result<()
 }
 
 #[tauri::command]
+pub async fn clear_completed_tasks(
+    state: State<'_, TaskManager>,
+) -> Result<u32, String> {
+    state.inner.clear_completed().await
+}
+
+#[tauri::command]
 pub async fn pause_all_tasks(state: State<'_, TaskManager>) -> Result<(), String> {
     state.inner.pause_all().await;
     Ok(())

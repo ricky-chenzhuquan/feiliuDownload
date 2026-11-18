@@ -95,6 +95,9 @@ export const resumeTask = (id: string) => invoke<void>("resume_task", { id });
 
 export const pauseAllTasks = () => invoke<void>("pause_all_tasks");
 
+export const clearCompletedTasks = () =>
+  invoke<number>("clear_completed_tasks");
+
 export const resumeAllTasks = () => invoke<void>("resume_all_tasks");
 
 export const deleteTask = (id: string, deleteFile: boolean) =>

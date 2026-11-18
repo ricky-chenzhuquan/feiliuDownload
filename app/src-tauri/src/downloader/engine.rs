@@ -690,6 +690,24 @@ impl Inner {
         }
     }
 
+    /// 清除全部已完成任务（保留磁盘文件，仅从列表移除）
+    pub async fn clear_completed(&self) -> Result<u32, String> {
+        let ids: Vec<String> = {
+            let tasks = self.tasks.lock().unwrap();
+            tasks
+                .values()
+                .filter(|s| *s.status.read().unwrap() == TaskStatus::Completed)
+                .map(|s| s.id.clone())
+                .collect()
+        };
+        let count = ids.len() as u32;
+        for id in &ids {
+            let _ = self.delete_task(id, false).await; // 保留文件
+        }
+        self.emit_list();
+        Ok(count)
+    }
+
     /// 暂停全部运行中/排队中的任务
     pub async fn pause_all(&self) {
         let ids: Vec<String> = {
