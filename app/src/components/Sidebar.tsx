@@ -1,5 +1,5 @@
 import type { TaskSnapshot } from "../lib/api";
-import { formatSpeed } from "../lib/format";
+import { formatBytes, formatSpeed } from "../lib/format";
 import { IconBolt, IconCheck, IconDownload, IconSettings, Logo } from "./Icons";
 
 export type View = "active" | "completed" | "settings";
@@ -16,6 +16,8 @@ export default function Sidebar({ view, onView, tasks }: Props) {
   const totalSpeed = tasks
     .filter((t) => t.status === "downloading")
     .reduce((s, t) => s + t.speed_bps, 0);
+  const totalDownloaded = tasks.reduce((s, t) => s + t.downloaded, 0);
+  const totalCount = tasks.length;
 
   return (
     <aside className="sidebar">
@@ -60,6 +62,16 @@ export default function Sidebar({ view, onView, tasks }: Props) {
             <span>{formatSpeed(totalSpeed)}</span>
           </div>
         )}
+        <div className="stats-chip">
+          <div className="stat-row">
+            <span className="stat-label">任务</span>
+            <span className="stat-value">{totalCount}</span>
+          </div>
+          <div className="stat-row">
+            <span className="stat-label">已下载</span>
+            <span className="stat-value">{formatBytes(totalDownloaded)}</span>
+          </div>
+        </div>
         <div className="version">v0.1.0</div>
       </div>
     </aside>

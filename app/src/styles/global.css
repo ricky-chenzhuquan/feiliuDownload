@@ -143,6 +143,31 @@ select {
   padding: 8px;
 }
 
+.stats-chip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.stat-label {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.stat-value {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .speed-chip {
   display: flex;
   align-items: center;
