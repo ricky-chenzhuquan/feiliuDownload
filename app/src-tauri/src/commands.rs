@@ -46,16 +46,24 @@ pub async fn add_task(
     dir: Option<String>,
     connections: Option<u32>,
 ) -> Result<TaskSnapshot, String> {
-    state
+    let mirrors: Vec<String> = mirrors.unwrap_or_default().into_iter().collect();
+    // 弹窗探测成功后 add_task 会再探一次（瞬态站点可能此时失败），
+    // 失败自动重试一次，与前端重试语义对齐
+    match state
         .inner
-        .add_task(
-            url,
-            mirrors.unwrap_or_default().into_iter().collect(),
-            filename,
-            dir,
-            connections,
-        )
+        .add_task(url.clone(), mirrors.clone(), filename.clone(), dir.clone(), connections)
         .await
+    {
+        Ok(t) => Ok(t),
+        Err(e) if e.contains("连接失败") || e.contains("无法访问") => {
+            tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+            state
+                .inner
+                .add_task(url, mirrors, filename, dir, connections)
+                .await
+        }
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
