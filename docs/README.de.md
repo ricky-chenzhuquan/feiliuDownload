@@ -21,7 +21,7 @@
 
 | Typ | Seiten | Parsing | Download |
 |---|---|---|---|
-| Video | Bilibili · Douyin (ohne WM) · Kuaishou · Xiaohongshu · Weibo · allgemein | ✅ Direktlink | ✅ Multi-Thread |
+| Video | Bilibili (inkl. Sammlungs-Stapel) · Douyin (ohne WM) · Kuaishou · Xiaohongshu · Weibo · allgemein | ✅ Direktlink | ✅ Multi-Thread |
 | Musik | NetEase Cloud Music | ✅ Song/Playlist | ✅ freie Songs (VIP → Hinweis), Playlist-Stapel |
 | Musik | 82DJ | ✅ Songseite | ✅ WebView-Auflösung + Referer |
 | Video | Twitter / X Video-Tweets | ✅ Direktlink (höchste Bitrate) | ✅ Multi-Thread |
