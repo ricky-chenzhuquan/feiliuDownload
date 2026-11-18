@@ -380,6 +380,7 @@ impl Inner {
             accept_ranges: info.accept_ranges,
             notice,
             batchable_playlist,
+            webview_plan: info.webview_plan.clone(),
         })
     }
 
@@ -1854,6 +1855,24 @@ mod tests {
             }
             Err(e) => panic!("probe 失败: {e}"),
         }
+    }
+
+    /// 82dj probe_url 组装：webview_plan 站点不得返回空 URL（防回归：
+    /// 曾因 resolved_url=Some("") 导致前端回传空串、add_task builder error）
+    #[tokio::test]
+    async fn test_82dj_probe_url_non_empty() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let mgr = TaskManager::new();
+        let r = mgr.inner.probe_url("https://www.82dj.com/play/31529").await.expect("probe_url 失败");
+        assert!(
+            !r.url.is_empty() && r.url.starts_with("http"),
+            "ProbeResult.url 不得为空串: {:?}",
+            r.url
+        );
+        assert!(r.webview_plan.is_some(), "82dj 应产出 WebView 代取计划");
+        println!("82dj probe_url OK: url={}", r.url);
     }
 
     /// 82dj 完整 probe 全路径复现（用户报错 play/31529）

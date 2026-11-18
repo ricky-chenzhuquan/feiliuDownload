@@ -113,7 +113,11 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
 
         if let Some(ex) = &extracted {
             info.filename = Some(ex.filename.clone());
-            info.resolved_url = Some(ex.direct_url.clone());
+            // direct_url 为空（如 82dj/蓝奏云走 WebView 代取）时不能产出
+            // Some("") —— 前端会把空串当 URL 回传，探测 builder error
+            if !ex.direct_url.is_empty() {
+                info.resolved_url = Some(ex.direct_url.clone());
+            }
             info.referer = ex.referer.clone();
         info.notice = ex.notice.clone();
         info.webview_plan = ex.webview_plan.clone();
@@ -122,8 +126,9 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         if info.notice.is_some() {
             return Ok(info);
         }
-        // 网页链接（未解析出媒体直链）→ 明确报错，避免把 HTML 当文件下载
-        if info.resolved_url.is_none() {
+        // 网页链接（未解析出媒体直链且无代取计划）→ 明确报错，
+        // 避免把 HTML 当文件下载；有 webview_plan 的站点是有意走代取的网页
+        if info.resolved_url.is_none() && info.webview_plan.is_none() {
             let ctype = info.content_type.as_deref().unwrap_or("");
             if ctype.contains("text/html") {
                 return Err("这是一个网页地址而不是文件直链。请复制视频/文件的分享链接或直链（若为支持的站点会自动解析）".into());

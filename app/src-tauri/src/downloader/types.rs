@@ -33,6 +33,9 @@ pub struct ProbeResult {
     /// 是否支持一键批量添加（网易云歌单）
     #[serde(default)]
     pub batchable_playlist: bool,
+    /// WebView 代取计划（82dj 等），前端展示「正在代取」状态用
+    #[serde(default)]
+    pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
 }
 
 /// 歌单批量添加结果

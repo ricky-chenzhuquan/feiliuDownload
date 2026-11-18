@@ -32,7 +32,7 @@ mod xhs;
 
 /// WebView 代取计划：直链被 TLS 指纹墙拦的站点（如蓝奏云），
 /// 交给应用内嵌 WebView（真浏览器指纹）加载 url 并轮询执行 js 取结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct WebviewExtractPlan {
     pub url: String,
     pub js: String,
