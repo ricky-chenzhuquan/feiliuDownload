@@ -11,6 +11,7 @@
 //! - `csdn`：CSDN 下载中心资源（匿名列出资源信息；下载需登录 VIP/积分）
 //! - `netease`：网易云音乐（单曲免登录直链 outer/url；VIP 歌与歌单给出引导）
 //! - `twitter`：Twitter/X 视频推文（syndication API + react-tweet token 算法）
+//! - `lanzou`：蓝奏云分享（结构列出；直链被 TLS 指纹墙拦，notice 引导）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
@@ -21,6 +22,7 @@ mod douyin;
 mod generic;
 pub mod helpers;
 mod kuaishou;
+mod lanzou;
 pub mod netease;
 mod twitter;
 mod weibo;
@@ -80,6 +82,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Twitter/X 视频推文
     if lower.contains("x.com/") || lower.contains("twitter.com/") {
         return twitter::resolve(url).await;
+    }
+    // 蓝奏云分享（系列域名，子域多变）
+    if lower.contains("lanzou") || lower.contains("lanzn.com") || lower.contains("lanpv.com") {
+        return lanzou::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await

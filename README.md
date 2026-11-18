@@ -25,7 +25,7 @@
 | Music | NetEase Cloud Music | ✅ song/playlist | ✅ free songs (VIP → notice), playlist batch |
 | Video | Twitter / X video posts | ✅ direct link (highest bitrate) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
-| Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ login required on site (platform restriction)
+| Cloud | Aliyun Drive · Baidu Netdisk · CSDN · Lanzou Cloud | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
 
 ## ✨ Features
 ## ✨ Features
