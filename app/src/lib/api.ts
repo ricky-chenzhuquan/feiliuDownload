@@ -15,6 +15,7 @@ export type TaskKind = "http" | "torrent";
 export interface TaskSnapshot {
   id: string;
   url: string;
+  source_url?: string;
   filename: string;
   save_path: string;
   total_size: number;

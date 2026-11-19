@@ -68,6 +68,9 @@ pub struct MirrorProbe {
 pub struct TaskSnapshot {
     pub id: String,
     pub url: String,
+    /// 解析类任务的原始分享页链接（直链会过期，分享链接可重新添加）
+    #[serde(default)]
+    pub source_url: Option<String>,
     pub filename: String,
     pub save_path: String,
     pub total_size: u64,

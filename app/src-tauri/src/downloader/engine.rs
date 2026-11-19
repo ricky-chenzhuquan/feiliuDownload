@@ -65,6 +65,7 @@ impl TaskShared {
         TaskSnapshot {
             id: self.id.clone(),
             url: meta.url.clone(),
+            source_url: meta.source_url.clone(),
             filename: meta.filename.clone(),
             save_path: meta.save_path.clone(),
             total_size: meta.total_size,

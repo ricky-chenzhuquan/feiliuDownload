@@ -216,6 +216,12 @@ export default function TaskCard({
               <span className="td-label">链接</span>
               <span className="td-value" title={task.url}>{task.url}</span>
             </div>
+            {task.source_url && task.source_url !== task.url && (
+              <div className="td-row">
+                <span className="td-label">原始链接</span>
+                <span className="td-value" title={task.source_url}>{task.source_url}</span>
+              </div>
+            )}
             <div className="td-row">
               <span className="td-label">保存位置</span>
               <span className="td-value" title={task.save_path}>{task.save_path}</span>
