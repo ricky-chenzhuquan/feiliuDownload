@@ -72,6 +72,22 @@ mod canonical_tests {
         );
     }
 
+    /// 真实小红书短链（xhslink.cn）：应解析出 xhs:{笔记id} 规范键
+    #[tokio::test]
+    async fn test_canonical_key_xhslink_real() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let key = canonical_key("https://xhslink.cn/o/1O0WRKQAjGa")
+            .await
+            .expect("小红书短链应有规范键");
+        assert!(
+            key.starts_with("xhs:") && key.len() > "xhs:".len() + 15,
+            "应解析出 xhs:笔记id 规范键: {key}"
+        );
+        println!("canonical xhslink OK: {key}");
+    }
+
     /// 真实抖音短链（v.douyin.com）：应解析出 douyin:{id} 规范键
     #[tokio::test]
     async fn test_canonical_key_douyin_short_real() {
@@ -218,6 +234,25 @@ pub async fn canonical_key(url: &str) -> Option<String> {
                     return Some(format!("douyin:{digits}"));
                 }
             }
+        }
+        return None;
+    }
+    // 小红书短链（xhslink.cn/.com）→ 跟随重定向后递归
+    if lower.contains("xhslink.cn/") || lower.contains("xhslink.com/") {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(helpers::MOBILE_UA)
+            .build()
+            .ok()?;
+        let resp = client.get(url).send().await.ok()?;
+        let loc = resp
+            .headers()
+            .get(reqwest::header::LOCATION)?
+            .to_str()
+            .ok()?
+            .to_string();
+        if loc.starts_with("http") {
+            return Box::pin(canonical_key(&loc)).await;
         }
         return None;
     }
