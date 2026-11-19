@@ -2,8 +2,11 @@
 //! 指纹墙站点的页面（如蓝奏云 fn 页），由页面自身 JS 完成直链生成，
 //! 轮询执行 js 表达式读取结果。桌面端专属。
 //!
-//! 媒体静音：目标页面（如 82dj play 页）会自动播放音频——隐藏窗口里
-//! 每次轮询都强制静音/暂停全部 audio/video，避免「突然放歌」。
+//! 媒体静音（2026-11-20 强化，用户报障「打电话时放歌」）：目标页面
+//! （82dj play 页）audio autoplay，且页面 JS 会反复重启播放；音频设备
+//! 切换（来电/通话）时 WKWebView 还会恢复已暂停的媒体。三层防线：
+//! ① hook HTMLMediaElement.prototype.play——任何播放调用强制静音；
+//! ② MutationObserver——动态新增媒体元素立即静音；③ 500ms 轮询兜底。
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -12,8 +15,25 @@ use tauri::WebviewWindowBuilder;
 
 use super::extract::WebviewExtractPlan;
 
-/// 静音并暂停页面内全部媒体（含后续动态创建的，靠轮询重复执行）
-const MUTE_JS: &str = r##"(()=>{document.querySelectorAll("audio,video").forEach(m=>{try{m.muted=true;m.volume=0;if(m.pause)m.pause()}catch(e){}});})()"##;
+/// 三层静音防线（hook 只装一次，静音部分每轮执行）
+const MUTE_JS: &str = r##"(()=>{
+document.querySelectorAll("audio,video").forEach(m=>{try{m.muted=true;m.volume=0;if(m.pause)m.pause()}catch(e){}});
+try{
+  if(!window.__feiliu_hooked){
+    window.__feiliu_hooked=true;
+    const orig=HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play=function(){try{this.muted=true;this.volume=0}catch(e){};return orig.call(this)};
+  }
+}catch(e){};
+try{
+  if(!window.__feiliu_mo){
+    window.__feiliu_mo=new MutationObserver(()=>{
+      document.querySelectorAll("audio,video").forEach(m=>{try{if(!m.muted){m.muted=true;m.volume=0;m.pause()}}catch(e){}});
+    });
+    window.__feiliu_mo.observe(document,{childList:true,subtree:true});
+  }
+}catch(e){};
+})()"##;
 
 /// 加载 plan.url，每 500ms 静音媒体并执行 plan.js，
 /// 返回首个非空结果（JSON 字符串由调用方 js 负责序列化）。
@@ -32,6 +52,9 @@ pub async fn extract(
     .visible(false)
     .skip_taskbar(true)
     .inner_size(420.0, 320.0)
+    // document-start 注入静音 hook：先于页面全部 JS（含 autoplay）执行，
+    // 零出声间隙（2026-11-20 用户报障「打电话时放歌」的治本修复）
+    .initialization_script(MUTE_JS)
     .build()
     .map_err(|e| format!("创建 WebView 窗口失败: {e}"))?;
 
