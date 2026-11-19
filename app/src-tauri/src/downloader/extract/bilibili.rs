@@ -504,6 +504,28 @@ mod tests {
         );
         println!("bilibili multi-P OK: P1={} | P3={}", p1.filename, p3.filename);
     }
+    /// 真实 b23.tv 短链（B站 App 分享的默认格式，用户最常用）：重定向链路回归
+    #[tokio::test]
+    async fn test_bilibili_b23tv_shortlink() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve("https://b23.tv/BV1GJ411x7h7")
+            .await
+            .expect("b23.tv 短链解析失败");
+        assert!(
+            info.direct_url.contains("bilivideo.com"),
+            "短链应解析出 bilivideo 直链: {}",
+            info.direct_url
+        );
+        assert!(
+            !info.filename.is_empty() && info.filename != "video.mp4",
+            "短链应取到真实标题: {}",
+            info.filename
+        );
+        println!("b23.tv OK: {}", info.filename);
+    }
+
 
     #[test]
     fn test_parse_space_list() {
