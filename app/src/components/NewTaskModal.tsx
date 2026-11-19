@@ -41,6 +41,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
   const [submitting, setSubmitting] = useState(false);
   const [mobile, setMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [batchLimit, setBatchLimit] = useState(30);
   const debounceRef = useRef<number | null>(null);
   const mirrorDebounceRef = useRef<number | null>(null);
 
@@ -50,6 +51,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
       getSettings().then((s) => {
         setDir((d) => d || s.download_dir);
         setConnections(s.max_connections);
+        setBatchLimit(s.batch_limit);
       });
       if (initialUrl) {
         setUrl(initialUrl);
@@ -168,7 +170,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
       kind === "netease_playlist" || kind === "bandcamp_album" ? "首" : "个";
       setBatchMsg(
         `已添加 ${r.added} ${unit}，跳过 ${r.skipped} ${unit}（失败/重复）` +
-          (r.truncated ? `；较长已截取前 30 ${unit}` : ""),
+          (r.truncated ? `；较长已截取前 ${batchLimit} ${unit}` : ""),
       );
       onAdded();
     } catch (e) {
@@ -310,13 +312,13 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                   {batching
                     ? "解析添加中…"
                     : probe.batch_kind === "bilibili_collection"
-                      ? "⚡ 一键添加合集/系列视频（前 30 个）"
+                      ? `⚡ 一键添加合集/系列视频（前 ${batchLimit} 个）`
                       : probe.batch_kind === "lanzou_folder"
-                        ? "⚡ 一键添加文件夹文件（前 30 个）"
+                        ? `⚡ 一键添加文件夹文件（前 ${batchLimit} 个）`
                         : probe.batch_kind === "bandcamp_album"
-                          ? "⚡ 一键添加专辑曲目（前 30 首）"
+                          ? `⚡ 一键添加专辑曲目（前 ${batchLimit} 首）`
                           : probe.batch_kind === "bilibili_bangumi"
-                            ? "⚡ 一键添加番剧集（前 30 集）"
+                            ? `⚡ 一键添加番剧集（前 ${batchLimit} 集）`
                             : "⚡ 一键添加免费歌曲（上限 30 首）"}
                 </button>
               )}
