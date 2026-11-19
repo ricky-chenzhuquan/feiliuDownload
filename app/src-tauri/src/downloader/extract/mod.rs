@@ -72,6 +72,22 @@ mod canonical_tests {
         );
     }
 
+    /// 真实抖音短链（v.douyin.com）：应解析出 douyin:{id} 规范键
+    #[tokio::test]
+    async fn test_canonical_key_douyin_short_real() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let key = canonical_key("https://v.douyin.com/13Rs-NJ7TdY/")
+            .await
+            .expect("抖音短链应有规范键");
+        assert!(
+            key.starts_with("douyin:") && key.len() > "douyin:".len() + 9,
+            "应解析出 douyin:id 规范键: {key}"
+        );
+        println!("canonical douyin OK: {key}");
+    }
+
     /// 真实 b23.tv 短链：键应与 www 形态一致（跨形态去重的核心场景）
     #[tokio::test]
     async fn test_canonical_key_b23tv_real() {
@@ -168,6 +184,25 @@ pub async fn canonical_key(url: &str) -> Option<String> {
                     return Some(format!("{tag}{digits}"));
                 }
             }
+        }
+        return None;
+    }
+    // 抖音短链（v.douyin.com/xxx）→ 跟随重定向后递归
+    if lower.contains("v.douyin.com/") {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(helpers::MOBILE_UA)
+            .build()
+            .ok()?;
+        let resp = client.get(url).send().await.ok()?;
+        let loc = resp
+            .headers()
+            .get(reqwest::header::LOCATION)?
+            .to_str()
+            .ok()?
+            .to_string();
+        if loc.starts_with("http") {
+            return Box::pin(canonical_key(&loc)).await;
         }
         return None;
     }
