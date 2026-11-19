@@ -133,6 +133,15 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             if ctype.contains("text/html") {
                 return Err("这是一个网页地址而不是文件直链。请复制视频/文件的分享链接或直链（若为支持的站点会自动解析）".into());
             }
+            // HLS/DASH 清单是分片播放列表，引擎不做分片拼接——明确拒绝防下载成垃圾文本
+            let lower_url = url.to_lowercase();
+            if ctype.contains("mpegurl")
+                || ctype.contains("dash+xml")
+                || lower_url.contains(".m3u8")
+                || lower_url.contains(".mpd")
+            {
+                return Err("这是 HLS/DASH 分片播放清单，暂不支持下载（需要流拼接）。请提供 MP4 等完整文件的直链".into());
+            }
         }
         return Ok(info);
     }
@@ -384,5 +393,22 @@ mod tests {
         );
         assert!(info.accept_ranges, "proof.ovh 支持 Range");
         println!("probe_direct_ref OK: {:?}", info.total_size);
+    }
+
+    /// 真实 HLS 清单（mux.dev 公共测试流）：应友好拒绝而非当文件下载垃圾文本
+    #[tokio::test]
+    async fn test_probe_hls_rejection() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let c = client();
+        let err = probe(&c, "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8")
+            .await
+            .expect_err("m3u8 清单应被拒绝");
+        assert!(
+            err.contains("HLS"),
+            "错误信息应说明 HLS 分片清单: {err}"
+        );
+        println!("probe HLS 拒绝 OK: {err}");
     }
 }
