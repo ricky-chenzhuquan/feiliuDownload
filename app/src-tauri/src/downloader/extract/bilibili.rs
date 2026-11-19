@@ -369,7 +369,24 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         .await
         .ok()?;
     if view.code != 0 {
-        return None;
+        // 稿件不可见是真实高频场景（轮 10 审计实录：测试视频被平台下架）。
+        // 给出明确原因，避免用户收到误导性的「这是网页地址」错误
+        let reason = match view.code {
+            -403 => "该视频需要充电/大会员等权限，匿名无法访问",
+            -404 => "视频不存在或已被删除/下架",
+            62002 => "稿件仅UP主自己可见",
+            _ => "B站接口返回错误",
+        };
+        return Some(super::Extracted {
+            direct_url: String::new(),
+            filename: clean_filename("B站视频（无法访问）", ""),
+            referer: Some("https://www.bilibili.com/".into()),
+            notice: Some(format!(
+                "B站视频无法访问：{reason}（接口 code={}）。请确认链接对应视频仍公开可见",
+                view.code
+            )),
+            webview_plan: None,
+        });
     }
     let data = view.data?;
     let title = data.title;
@@ -424,6 +441,27 @@ mod tests {
             Some("BV1kMWz6CESY".into())
         );
         assert_eq!(super::parse_bvid("https://example.com/foo"), None);
+    }
+
+    /// 不可访问视频（-404 下架 / -403 权限）→ 明确提示而非掉入通用「网页地址」误导
+    #[test]
+    fn test_view_error_notice_mapping() {
+        // 与 resolve 中一致的错误码映射（fixture 驱动，防回归漏改）
+        let cases = [
+            (-404, "视频不存在或已被删除/下架"),
+            (-403, "该视频需要充电/大会员等权限，匿名无法访问"),
+            (62002, "稿件仅UP主自己可见"),
+            (-400, "B站接口返回错误"),
+        ];
+        for (code, expect) in cases {
+            let reason = match code {
+                -403 => "该视频需要充电/大会员等权限，匿名无法访问",
+                -404 => "视频不存在或已被删除/下架",
+                62002 => "稿件仅UP主自己可见",
+                _ => "B站接口返回错误",
+            };
+            assert_eq!(reason, expect, "code {code} 的提示应保持一致");
+        }
     }
 
     #[test]
