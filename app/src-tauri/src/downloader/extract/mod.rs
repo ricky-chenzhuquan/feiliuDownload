@@ -15,10 +15,12 @@
 //! - `dj82`：82DJ 舞曲网（音频 src 前端计算，WebView 代取；直链需 Referer）
 //! - `github`：GitHub Releases（页面链接 → 资产直链/结构，匿名 API 全可用）
 //! - `archive`：Internet Archive 条目页（匿名 metadata API → 媒体直链，公开无防盗链）
+//! - `bandcamp`：Bandcamp 专辑/曲目页（内嵌 data-tralbum JSON → mp3-128 流直链）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
 mod archive;
+mod bandcamp;
 mod baidu;
 mod csdn;
 mod dj82;
@@ -118,6 +120,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Internet Archive 条目页（匿名 metadata API → 媒体直链）
     if lower.contains("archive.org") && lower.contains("/details/") {
         return archive::resolve(url).await;
+    }
+    // Bandcamp 专辑/曲目页（内嵌 tralbum JSON → mp3-128 流直链）
+    if lower.contains("bandcamp.com") && (lower.contains("/album/") || lower.contains("/track/")) {
+        return bandcamp::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await
