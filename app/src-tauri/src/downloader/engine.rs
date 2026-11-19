@@ -1257,8 +1257,13 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                 *shared.status.write().unwrap() = TaskStatus::Queued;
                 *shared.error.write().unwrap() = None;
             } else {
+                let msg = if expired {
+                    format!("{e}；直链已过期且自动重解析失败，请删除任务后重新添加（分享页链接）")
+                } else {
+                    e
+                };
                 *shared.status.write().unwrap() = TaskStatus::Failed;
-                *shared.error.write().unwrap() = Some(e);
+                *shared.error.write().unwrap() = Some(msg);
             }
         }
     }
@@ -1451,8 +1456,24 @@ async fn run_parallel(
 
 /// 单连接下载（不支持 Range 或大小未知）
 async fn run_single(shared: &Arc<TaskShared>, sidecar: &Sidecar, meta: &TaskMeta) -> Flow {
+    // 单连接重建分片结构：先存 meta，remove 旧目录后立刻写回，
+    // 否则合并/恢复阶段读不到元数据
+    let saved_meta = SidecarMeta {
+        version: 1,
+        url: meta.url.clone(),
+        mirrors: meta.mirrors.clone(),
+        referer: meta.referer.clone(),
+        save_path: meta.save_path.clone(),
+        filename: meta.filename.clone(),
+        total_size: meta.total_size,
+        accept_ranges: meta.accept_ranges,
+        etag: meta.etag.clone(),
+        last_modified: meta.last_modified.clone(),
+        chunk_size: CHUNK_SIZE,
+    };
     sidecar.remove();
     let _ = sidecar.create();
+    let _ = sidecar.write_meta(&saved_meta);
     shared.active_conns.store(1, Ordering::Relaxed);
 
     let client = probe::download_client();

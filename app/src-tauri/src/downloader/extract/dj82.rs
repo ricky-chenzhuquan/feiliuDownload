@@ -3,7 +3,9 @@
 //! 实测（2026-11-19）：play 页的音频 src 由前端 JS 计算（静态 HTML 零痕迹），
 //! 走 WebView 代取通道读取 `audio.currentSrc`；直链防盗链需
 //! `Referer: https://www.82dj.com/`（带 Referer 实测 206 / 31MB）。
-//! 下载（/down/{id}）需登录账号，notice 引导。
+//! CDN 内容为 MP4 容器（直链 .mp4 结尾、ftyp mp42）——文件名用 .mp4 扩展名，
+//! .mp3 后缀会被 QuickTime 拒播。直链分钟级时效，过期由引擎 source_url
+//! 救援机制自动重解析。下载（/down/{id}）需登录账号，notice 引导。
 use super::helpers::clean_filename;
 
 fn page_client() -> Option<reqwest::Client> {
@@ -53,7 +55,8 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
 
     Some(super::Extracted {
         direct_url: String::new(), // add_task 时由 WebView 代取填充
-        filename: clean_filename(&title, "mp3"),
+        // CDN 内容实测为 MP4 容器（直链 .mp4 结尾），mp3 后缀会被 QuickTime 拒播
+        filename: clean_filename(&title, "mp4"),
         referer: Some("https://www.82dj.com/".into()),
         notice: None,
         webview_plan: Some(plan),
