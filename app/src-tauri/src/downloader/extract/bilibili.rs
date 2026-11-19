@@ -21,6 +21,16 @@ struct BiliViewResp {
 struct BiliViewData {
     title: String,
     cid: i64,
+    #[serde(default)]
+    pages: Option<Vec<BiliPage>>,
+}
+
+/// 多 P 视频的分页信息（pages[i].cid 对应第 i+1 个分 P）
+#[derive(Deserialize)]
+struct BiliPage {
+    cid: i64,
+    #[serde(default)]
+    part: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -107,6 +117,23 @@ fn parse_bvid(url: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+/// 提取分 P 参数 ?p=N / &p=N（返回 1 起始页号）
+fn parse_page_num(url: &str) -> Option<u64> {
+    let lower = url.to_lowercase();
+    for marker in ["?p=", "&p="] {
+        if let Some(idx) = lower.find(marker) {
+            let rest = &url[idx + marker.len()..];
+            let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if let Ok(n) = digits.parse::<u64>() {
+                if n >= 1 {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// space「合集与列表」页类型：合集（seasons 接口）/ 系列（series 接口）
@@ -346,7 +373,22 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     }
     let data = view.data?;
     let title = data.title;
-    let cid = data.cid;
+    // ?p=N 选择分 P（无参数 = P1）；越界/缺 pages 回退默认 cid
+    let page_num = parse_page_num(&page).unwrap_or(1);
+    let (cid, part_label) = match &data.pages {
+        Some(pages) if pages.len() > 1 && page_num > 1 => {
+            let idx = (page_num as usize - 1).min(pages.len() - 1);
+            let p = &pages[idx];
+            (p.cid, p.part.clone().filter(|s| !s.trim().is_empty()))
+        }
+        _ => (data.cid, None),
+    };
+    let title = match part_label {
+        Some(part) if data.pages.as_ref().map_or(false, |ps| ps.len() > 1) => {
+            format!("{title} P{page_num}·{part}")
+        }
+        _ => title,
+    };
 
     let play: BiliPlayResp = http
         .get(format!(
@@ -382,6 +424,47 @@ mod tests {
             Some("BV1kMWz6CESY".into())
         );
         assert_eq!(super::parse_bvid("https://example.com/foo"), None);
+    }
+
+    #[test]
+    fn test_parse_page_num() {
+        assert_eq!(
+            super::parse_page_num("https://www.bilibili.com/video/BV1x?p=3"),
+            Some(3)
+        );
+        assert_eq!(
+            super::parse_page_num("https://www.bilibili.com/video/BV1x/?p=12&spm=a"),
+            Some(12)
+        );
+        assert_eq!(super::parse_page_num("https://www.bilibili.com/video/BV1x"), None);
+        assert_eq!(
+            super::parse_page_num("https://www.bilibili.com/video/BV1x?p=0"),
+            None
+        );
+    }
+
+    /// 真实多 P 视频（GTA6 全任务 28 P）：?p=3 应选中 P3（文件名含分 P 标记）
+    #[tokio::test]
+    async fn test_bilibili_multi_p() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let p1 = super::super::resolve("https://www.bilibili.com/video/BV1NDsS6UE8D")
+            .await
+            .expect("P1 解析失败");
+        let p3 = super::super::resolve("https://www.bilibili.com/video/BV1NDsS6UE8D?p=3")
+            .await
+            .expect("P3 解析失败");
+        assert!(
+            p3.filename.contains("P3"),
+            "文件名应含 P3 标记: {}",
+            p3.filename
+        );
+        assert_ne!(
+            p1.direct_url, p3.direct_url,
+            "P1 与 P3 直链应不同（cid 分片不同）"
+        );
+        println!("bilibili multi-P OK: P1={} | P3={}", p1.filename, p3.filename);
     }
 
     #[test]
