@@ -50,8 +50,8 @@
 
 | Plattform | Link | Status |
 |---|---|---|
-| macOS (Apple Silicon) | [FeiLiu_0.1.0_aarch64.dmg](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_aarch64.dmg) | ✅ |
-| Windows 10/11 (64-Bit) | [FeiLiu_0.1.0_x64-setup.exe](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.0_x64-setup.exe) | ✅ via CI |
+| macOS (Apple Silicon) | [FeiLiu_0.1.1_aarch64.dmg](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.1_aarch64.dmg) | ✅ |
+| Windows 10/11 (64-Bit) | [FeiLiu_0.1.1_x64-setup.exe](https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/FeiLiu_0.1.1_x64-setup.exe) | ✅ via CI |
 | iOS | [FeiLiu_0.1.0_ios.ipa](https://raw.githubusercontent.com/ricky-chenzhuquan/feiliuDownload/main/website/downloads/FeiLiu_0.1.0_ios.ipa) · Entwickler-signiert | ⚠️ nur registrierte Geräte · TestFlight 🔜 |
 | Android | [FeiLiu_0.1.0_aarch64.apk](https://raw.githubusercontent.com/ricky-chenzhuquan/feiliuDownload/main/website/downloads/FeiLiu_0.1.0_aarch64.apk) · Selbst-signiert | ✅ arm64-v8a |
 

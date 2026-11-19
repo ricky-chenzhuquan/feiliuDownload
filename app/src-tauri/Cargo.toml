@@ -1,6 +1,6 @@
 [package]
 name = "feiliu"
-version = "0.1.0"
+version = "0.1.1"
 description = "飞流下载 - 多线程高速下载器"
 authors = ["FeiLiu"]
 edition = "2024"
