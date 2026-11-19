@@ -14,9 +14,11 @@
 //! - `lanzou`：蓝奏云分享（单文件 WebView 代取直链；文件夹列表 + 一键批量）
 //! - `dj82`：82DJ 舞曲网（音频 src 前端计算，WebView 代取；直链需 Referer）
 //! - `github`：GitHub Releases（页面链接 → 资产直链/结构，匿名 API 全可用）
+//! - `archive`：Internet Archive 条目页（匿名 metadata API → 媒体直链，公开无防盗链）
 //! - `generic`：通用兜底（og:video / <video src>）
 
 mod alipan;
+mod archive;
 mod baidu;
 mod csdn;
 mod dj82;
@@ -112,6 +114,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // GitHub Releases（页面链接 → 资产结构/直链）
     if lower.contains("github.com/") && lower.contains("/releases") {
         return github::resolve(url).await;
+    }
+    // Internet Archive 条目页（匿名 metadata API → 媒体直链）
+    if lower.contains("archive.org") && lower.contains("/details/") {
+        return archive::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await

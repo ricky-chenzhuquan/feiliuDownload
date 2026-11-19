@@ -26,6 +26,7 @@
 | Music | 82DJ | ✅ song page | ✅ WebView-resolved stream + Referer |
 | Video | Twitter / X video posts | ✅ direct link (highest bitrate) | ✅ multi-thread |
 | Dev | GitHub Releases | ✅ page → assets | ✅ single-asset direct (anonymous API) |
+| Archive | Internet Archive item pages | ✅ direct link (public, no login) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
@@ -35,7 +36,7 @@
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.
 - 🔀 **Multi-source (mirror) downloading** — paste extra mirror URLs for the same file; chunks rotate across CDNs so throughput stacks.
-- 📺 **Site extraction (15+ platforms)** — Bilibili (video / collection / series with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases; cloud-drive/CSDN shares are listed with honest guidance.
+- 📺 **Site extraction (15+ platforms)** — Bilibili (video / collection / series with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media); cloud-drive/CSDN shares are listed with honest guidance.
 - 🧲 **BitTorrent** — magnet links & .torrent files powered by librqbit (DHT + trackers).
 - ⏸️ **Pause / resume / restart-safe** — chunk progress lives on disk in real time; interrupted downloads resume from the exact byte. Optional **auto-resume on launch**.
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.
