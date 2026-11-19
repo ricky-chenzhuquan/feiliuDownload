@@ -43,7 +43,8 @@
 - 🔍 **Intelligente Erkennung** — Dateiname, Größe und Range-Unterstützung werden automatisch erkannt; Server ohne Byte-Range-Support weichen elegant auf eine einzelne Verbindung aus.
 - 🗂️ **Task-Verwaltung** — parallele Aufgaben mit Live-Geschwindigkeit, Restzeit und Verbindungsanzahl. Alles pausieren / alles fortsetzen mit einem Klick.
 - 📋 **Schnelles Hinzufügen** — Clipboard-Überwachung und Drag & Drop von Links ins Fenster füllen den Dialog automatisch vor.
-- 🖱️ **Verwaltung Plus** — Kontextmenü (Link/Dateiname kopieren, Ordner anzeigen), aufklappbare Task-Details, Dateinamen-Filter, „Fertige löschen" und Seitenleisten-Statistik.
+- 🖱️ **Verwaltung Plus** — Kontextmenü (Kopieren/Ordner anzeigen), aufklappbare Task-Details (inkl. Original-Share-Link bei analysierten Aufgaben), Dateinamen-Filter, „Fertige löschen", **lebenslange Statistik** (übersteht Löschen) und **anpassbares Stapel-Limit** (Standard 30).
+- 🧬 **Cross-Form-Duplikaterkennung** — dasselbe Video als Kurzlink (b23.tv / v.douyin / xhslink), volle URL oder Share-Text wird als ein Eintrag erkannt; Bezahl-/nicht verfügbare Inhalte erhalten ehrliche Hinweise.
 - 🔄 **In-App-Auto-Update** — Update-Manifeste werden über GitHub Releases veröffentlicht; Update-Pakete werden vor der Installation per Minisign verifiziert.
 - 🛡️ **Sauber & privat** — keine Werbung, kein Bundleware, keine Telemetrie. Eine lokale Rust-Engine.
 - 🪶 **Federleicht** — auf Tauri 2 basis: ein ~4-MB-Installer.
