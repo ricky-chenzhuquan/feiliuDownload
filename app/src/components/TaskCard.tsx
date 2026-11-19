@@ -240,7 +240,12 @@ export default function TaskCard({
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={() => void copyText(task.url)}>复制链接</button>
+          <button onClick={() => void copyText(task.url)}>复制链接（直链）</button>
+          {task.source_url && task.source_url !== task.url && (
+            <button onClick={() => void copyText(task.source_url ?? "")}>
+              复制原始分享链接
+            </button>
+          )}
           <button onClick={() => void copyText(task.filename)}>复制文件名</button>
           {task.status === "completed" && (
             <button onClick={() => void revealPath(task.save_path).catch(() => {})}>
