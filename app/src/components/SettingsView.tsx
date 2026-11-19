@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   checkForUpdate,
   getSettings,
@@ -16,7 +17,13 @@ interface Props {
 }
 
 export default function SettingsView({ onLoaded }: Props) {
+  const [appVersion, setAppVersion] = useState<string>("");
   const [settings, setLocal] = useState<Settings | null>(null);
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(""));
+  }, []);
   const [mobile, setMobile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -251,7 +258,9 @@ export default function SettingsView({ onLoaded }: Props) {
           不支持的服务器会自动降级为单连接下载。
         </p>
         <p>部分网站会对单个连接限速，此时提高连接数可以显著提升速度。</p>
-        <p className="version-line">飞流下载 v0.1.0 · Tauri + Rust 引擎</p>
+        <p className="version-line">
+          飞流下载 {appVersion ? `v${appVersion}` : ""} · Tauri + Rust 引擎
+        </p>
       </div>
     </div>
   );
