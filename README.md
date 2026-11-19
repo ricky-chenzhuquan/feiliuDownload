@@ -43,7 +43,8 @@
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.
 - 🗂️ **Multi-task manager** — parallel tasks with live speed, ETA and connection count. Pause-all / resume-all in one click.
 - 📋 **Quick add** — clipboard watch and drag-and-drop links onto the window pre-fill the new-task dialog.
-- 🖱️ **Manager extras** — right-click menu (copy link / filename / reveal folder), expandable task details, filename search filter, clear-completed and sidebar totals.
+- 🖱️ **Manager extras** — right-click menu (copy link / filename / reveal folder), expandable task details (incl. the original share link for resolved tasks), filename search filter, clear-completed, **lifetime totals** that survive clearing, and **adjustable batch limit** (default 30).
+- 🧬 **Cross-form duplicate detection** — the same video pasted as a short link (b23.tv / v.douyin / xhslink), full URL, or share text is recognized as one item; paid/unavailable content gets an honest notice instead of a fake download.
 - 🔄 **In-app auto-update** — update manifests are published via GitHub Releases; update packages are minisign-verified before install.
 - 🛡️ **Clean & private** — no ads, no bundleware, no telemetry. A local Rust engine.
 - 🪶 **Feather-light** — built on Tauri 2: a ~4 MB installer.
