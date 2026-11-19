@@ -78,7 +78,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://www.82dj.com/play/31534")
+        let info = super::super::resolve_retry("https://www.82dj.com/play/31534")
             .await
             .expect("82dj 解析失败");
         assert!(

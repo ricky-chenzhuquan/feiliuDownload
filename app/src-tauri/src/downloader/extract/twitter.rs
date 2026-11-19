@@ -165,7 +165,7 @@ mod tests {
             eprintln!("skip: cdn.syndication.twimg.com 网络不可达（本机无代理环境）");
             return;
         }
-        let info = super::super::resolve("https://x.com/NASA/status/2122404409292337592")
+        let info = super::super::resolve_retry("https://x.com/NASA/status/2122404409292337592")
             .await
             .expect("Twitter 解析失败");
         assert!(

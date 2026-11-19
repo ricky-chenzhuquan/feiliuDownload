@@ -487,10 +487,10 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let p1 = super::super::resolve("https://www.bilibili.com/video/BV1NDsS6UE8D")
+        let p1 = super::super::resolve_retry("https://www.bilibili.com/video/BV1NDsS6UE8D")
             .await
             .expect("P1 解析失败");
-        let p3 = super::super::resolve("https://www.bilibili.com/video/BV1NDsS6UE8D?p=3")
+        let p3 = super::super::resolve_retry("https://www.bilibili.com/video/BV1NDsS6UE8D?p=3")
             .await
             .expect("P3 解析失败");
         assert!(
@@ -510,7 +510,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://b23.tv/BV1GJ411x7h7")
+        let info = super::super::resolve_retry("https://b23.tv/BV1GJ411x7h7")
             .await
             .expect("b23.tv 短链解析失败");
         assert!(
@@ -565,7 +565,7 @@ mod tests {
             return;
         }
         let url = "https://space.bilibili.com/503344993/channel/collectiondetail?sid=416786";
-        let info = super::super::resolve(url)
+        let info = super::super::resolve_retry(url)
             .await
             .expect("B站合集解析失败");
         assert!(
@@ -594,7 +594,7 @@ mod tests {
             return;
         }
         let url = "https://space.bilibili.com/1369507485/channel/seriesdetail?sid=2249610";
-        let info = super::super::resolve(url)
+        let info = super::super::resolve_retry(url)
             .await
             .expect("B站系列解析失败");
         assert!(

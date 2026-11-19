@@ -185,7 +185,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve(
+        let info = super::super::resolve_retry(
             "https://iksre.bandcamp.com/album/in-all-her-forms-sound-meditations-vol-2",
         )
         .await
@@ -229,7 +229,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://iksre.bandcamp.com/track/lake-shore")
+        let info = super::super::resolve_retry("https://iksre.bandcamp.com/track/lake-shore")
             .await
             .expect("Bandcamp 曲目解析失败");
         assert!(

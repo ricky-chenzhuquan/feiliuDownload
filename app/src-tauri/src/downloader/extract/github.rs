@@ -147,7 +147,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve(
+        let info = super::super::resolve_retry(
             "https://github.com/ricky-chenzhuquan/feiliuDownload/releases/tag/v0.1.0",
         )
         .await

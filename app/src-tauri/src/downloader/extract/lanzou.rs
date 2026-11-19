@@ -295,7 +295,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://ydb6.lanzoui.com/iD1r64gc2wuh")
+        let info = super::super::resolve_retry("https://ydb6.lanzoui.com/iD1r64gc2wuh")
             .await
             .expect("蓝奏云单文件解析失败");
         assert!(info.notice.is_none(), "有 plan 时不应有 notice");
@@ -311,7 +311,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://ydb6.lanzoui.com/s/ydb666")
+        let info = super::super::resolve_retry("https://ydb6.lanzoui.com/s/ydb666")
             .await
             .expect("蓝奏云解析失败");
         assert!(

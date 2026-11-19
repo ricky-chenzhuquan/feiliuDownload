@@ -239,7 +239,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://163cn.tv/bk5ZmvAb")
+        let info = super::super::resolve_retry("https://163cn.tv/bk5ZmvAb")
             .await
             .expect("网易云歌单解析失败");
         assert!(
@@ -257,7 +257,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://music.163.com/song?id=5255640")
+        let info = super::super::resolve_retry("https://music.163.com/song?id=5255640")
             .await
             .expect("网易云歌曲解析失败");
         assert!(

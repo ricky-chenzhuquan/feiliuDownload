@@ -138,7 +138,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://www.alipan.com/s/4KZmWKgfnJc")
+        let info = super::super::resolve_retry("https://www.alipan.com/s/4KZmWKgfnJc")
             .await
             .expect("阿里云盘解析失败");
         assert!(

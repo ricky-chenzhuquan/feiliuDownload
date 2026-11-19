@@ -35,7 +35,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://xhslink.cn/o/1O0WRKQAjGa")
+        let info = super::super::resolve_retry("https://xhslink.cn/o/1O0WRKQAjGa")
             .await
             .expect("小红书解析失败");
         assert!(

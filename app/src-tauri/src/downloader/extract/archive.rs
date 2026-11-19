@@ -215,7 +215,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://archive.org/details/BigBuckBunny_124")
+        let info = super::super::resolve_retry("https://archive.org/details/BigBuckBunny_124")
             .await
             .expect("Internet Archive 解析失败");
         assert!(
@@ -238,7 +238,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve(
+        let info = super::super::resolve_retry(
             "https://archive.org/details/nonfiction013_librivox",
         )
         .await

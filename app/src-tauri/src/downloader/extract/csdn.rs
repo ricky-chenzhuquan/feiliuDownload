@@ -114,7 +114,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve(
+        let info = super::super::resolve_retry(
             "https://download.csdn.net/download/qq_36804580/10522936",
         )
         .await

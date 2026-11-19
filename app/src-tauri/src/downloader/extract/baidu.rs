@@ -198,7 +198,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve(
+        let info = super::super::resolve_retry(
             "https://pan.baidu.com/s/1z3VmdlAW-Gy4nlu-sF09aQ?pwd=31e7",
         )
         .await

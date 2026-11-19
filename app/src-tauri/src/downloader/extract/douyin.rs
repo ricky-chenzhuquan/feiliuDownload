@@ -135,7 +135,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://v.douyin.com/13Rs-NJ7TdY/")
+        let info = super::super::resolve_retry("https://v.douyin.com/13Rs-NJ7TdY/")
             .await
             .expect("抖音解析失败");
         assert!(

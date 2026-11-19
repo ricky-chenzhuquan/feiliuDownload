@@ -282,7 +282,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://www.bilibili.com/bangumi/play/ep70866")
+        let info = super::super::resolve_retry("https://www.bilibili.com/bangumi/play/ep70866")
             .await
             .expect("番剧单集解析失败");
         assert!(
@@ -306,7 +306,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve("https://www.bilibili.com/bangumi/play/ep72067")
+        let info = super::super::resolve_retry("https://www.bilibili.com/bangumi/play/ep72067")
             .await
             .expect("会员集解析失败");
         let notice = info.notice.clone().unwrap_or_default();
