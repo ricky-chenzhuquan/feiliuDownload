@@ -231,4 +231,29 @@ mod tests {
         );
         println!("archive OK: {} ← {}", info.filename, info.direct_url);
     }
+
+    /// 真实纯音频条目（LibriVox 有声书，48 个 mp3 无视频）：音频档直链
+    #[tokio::test]
+    async fn test_archive_real_audio_item() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve(
+            "https://archive.org/details/nonfiction013_librivox",
+        )
+        .await
+        .expect("音频条目解析失败");
+        assert!(
+            info.direct_url.ends_with(".mp3"),
+            "无视频条目应选音频档 mp3: {}",
+            info.direct_url
+        );
+        assert!(info.notice.is_none(), "有音频应直接给直链");
+        assert!(
+            info.filename.ends_with(".mp3"),
+            "文件名扩展名应为 mp3: {}",
+            info.filename
+        );
+        println!("archive audio OK: {}", info.filename);
+    }
 }
