@@ -135,6 +135,9 @@ pub struct PersistedTask {
     /// 解析类任务的原始分享页 URL（直链有时效，404/403 时据此重解析）
     #[serde(default)]
     pub source_url: Option<String>,
+    /// 站点规范身份键（如 bili:BV1..:p1）——跨 URL 形态（短链/带参数）去重
+    #[serde(default)]
+    pub canonical: Option<String>,
     #[serde(default)]
     pub kind: TaskKind,
     #[serde(default)]

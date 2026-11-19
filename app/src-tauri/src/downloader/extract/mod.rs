@@ -38,6 +38,57 @@ mod twitter;
 mod weibo;
 mod xhs;
 
+#[cfg(test)]
+mod canonical_tests {
+    use super::*;
+
+    #[test]
+    fn test_canonical_key_offline() {
+        // 同一 BV 的不同形态 → 同一键
+        assert_eq!(
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(canonical_key("https://www.bilibili.com/video/BV1GJ411x7h7")),
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(canonical_key(
+                    "https://www.bilibili.com/video/BV1GJ411x7h7/?share_source=copy_web"
+                ))
+        );
+        // 分 P 不同 → 键不同
+        let p1 = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(canonical_key("https://www.bilibili.com/video/BV1x?p=1"));
+        let p2 = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(canonical_key("https://www.bilibili.com/video/BV1x?p=2"));
+        assert_ne!(p1, p2);
+        // 直链类无规范键
+        assert_eq!(
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(canonical_key("https://example.com/file.mp4")),
+            None
+        );
+    }
+
+    /// 真实 b23.tv 短链：键应与 www 形态一致（跨形态去重的核心场景）
+    #[tokio::test]
+    async fn test_canonical_key_b23tv_real() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let short = canonical_key("https://b23.tv/BV1GJ411x7h7")
+            .await
+            .expect("短链应有规范键");
+        let www = canonical_key("https://www.bilibili.com/video/BV1GJ411x7h7")
+            .await
+            .expect("www 应有规范键");
+        assert_eq!(short, www, "b23.tv 与 www 形态应映射同一键: {short} vs {www}");
+        println!("canonical b23.tv OK: {short}");
+    }
+}
+
 /// WebView 代取计划：直链被 TLS 指纹墙拦的站点（如蓝奏云），
 /// 交给应用内嵌 WebView（真浏览器指纹）加载 url 并轮询执行 js 取结果
 #[derive(Debug, Clone, serde::Serialize)]
@@ -56,6 +107,127 @@ pub struct Extracted {
     pub notice: Option<String>,
     /// 需要内嵌 WebView 代取直链的计划；engine.add_task 时执行
     pub webview_plan: Option<WebviewExtractPlan>,
+}
+
+/// 站点规范身份键：同一内容的不同 URL 形态（短链、带分享参数、www/移动域）
+/// 映射到同一键，供引擎跨形态查重。None = 无规范键（HTTP 直链等，按原 URL 去重）。
+/// 纯 URL 解析为主（无网络）；仅 b23.tv 短链需跟随一次重定向。
+pub async fn canonical_key(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    // b23.tv 短链 → 跟随重定向后递归
+    if lower.contains("b23.tv/") {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(helpers::MOBILE_UA)
+            .build()
+            .ok()?;
+        let resp = client.get(url).send().await.ok()?;
+        let loc = resp
+            .headers()
+            .get(reqwest::header::LOCATION)?
+            .to_str()
+            .ok()?
+            .to_string();
+        if loc.starts_with("http") {
+            return Box::pin(canonical_key(&loc)).await;
+        }
+        return None;
+    }
+    // B 站视频（BV 号 + 分 P）
+    if lower.contains("bilibili.com/video") {
+        let idx = url.find("/video/")? + "/video/".len();
+        let bvid: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if !bvid.starts_with("BV") {
+            return None;
+        }
+        let page = ["?p=", "&p="]
+            .iter()
+            .find_map(|m| {
+                let i = lower.find(m)?;
+                let digits: String = url[i + m.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                digits.parse::<u64>().ok().filter(|n| *n >= 1)
+            })
+            .unwrap_or(1);
+        return Some(format!("bili:{bvid}:p{page}"));
+    }
+    // B 站番剧（ep/ss）
+    if lower.contains("bilibili.com/bangumi/play/") {
+        for (marker, tag) in [("ep", "bgm-ep:"), ("ss", "bgm-ss:")] {
+            if let Some(i) = lower.find(&format!("/{marker}")) {
+                let digits: String = url[i + marker.len() + 1..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if !digits.is_empty() {
+                    return Some(format!("{tag}{digits}"));
+                }
+            }
+        }
+        return None;
+    }
+    // 抖音（视频/图集 id）
+    if lower.contains("douyin.com") || lower.contains("iesdouyin.com") {
+        for marker in ["/video/", "/note/", "share/video/", "share/note/"] {
+            if let Some(i) = lower.find(marker) {
+                let digits: String = url[i + marker.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if digits.len() >= 10 {
+                    return Some(format!("douyin:{digits}"));
+                }
+            }
+        }
+        return None;
+    }
+    // 小红书（笔记 id）
+    if lower.contains("xiaohongshu.com") {
+        for marker in ["/explore/", "/discovery/item/"] {
+            if let Some(i) = lower.find(marker) {
+                let id: String = url[i + marker.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_hexdigit())
+                    .collect();
+                if id.len() >= 16 {
+                    return Some(format!("xhs:{id}"));
+                }
+            }
+        }
+        return None;
+    }
+    // 网易云单曲
+    if lower.contains("music.163.com") {
+        if let Some(i) = lower.find("song?id=") {
+            let digits: String = url[i + "song?id=".len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if !digits.is_empty() {
+                return Some(format!("ne:{digits}"));
+            }
+        }
+        return None;
+    }
+    // Internet Archive 条目
+    if lower.contains("archive.org") && lower.contains("/details/") {
+        let idx = lower.find("/details/")? + "/details/".len();
+        let id: String = url[idx..]
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or("")
+            .to_string();
+        if !id.is_empty() {
+            return Some(format!("ia:{id}"));
+        }
+        return None;
+    }
+    None
 }
 
 /// 识别并解析；非支持的站点返回 None（走普通 HTTP 下载）

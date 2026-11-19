@@ -94,6 +94,8 @@ pub struct TaskMeta {
     /// 解析类任务的原始分享页 URL（直链有时效——82dj 分钟级、B 站数小时——
     /// 下载 404/403 时据此自动重新解析拿新直链）
     source_url: Option<String>,
+    /// 站点规范身份键（跨 URL 形态去重：b23.tv 短链 ≡ www 直链 ≡ 带分享参数）
+    canonical: Option<String>,
     filename: String,
     save_path: String,
     total_size: u64,
@@ -243,6 +245,7 @@ impl Inner {
                     mirrors: p.mirrors,
                     referer: p.referer,
                     source_url: p.source_url,
+                    canonical: p.canonical,
                     filename: p.filename,
                     save_path: p.save_path,
                     total_size: p.total_size,
@@ -291,6 +294,7 @@ impl Inner {
                         mirrors: meta.mirrors.clone(),
                         referer: meta.referer.clone(),
                         source_url: meta.source_url.clone(),
+                        canonical: meta.canonical.clone(),
                         kind: meta.kind,
                         info_hash: meta.info_hash.clone(),
                         filename: meta.filename.clone(),
@@ -639,6 +643,19 @@ impl Inner {
                 return Err("该链接已在任务列表中，请勿重复添加".into());
             }
         }
+        // 跨 URL 形态查重：b23.tv 短链 ≡ www 链接 ≡ 带分享参数（规范身份键）
+        let canonical_key = crate::downloader::extract::canonical_key(&url).await;
+        if let Some(key) = &canonical_key {
+            let tasks = self.tasks.lock().unwrap();
+            let dup = tasks.values().any(|t| {
+                t.meta.read().unwrap().canonical.as_deref() == Some(key.as_str())
+            });
+            if dup {
+                return Err(
+                    "该内容已在任务列表中（链接形态不同但指向同一视频），请勿重复添加".into(),
+                );
+            }
+        }
         let mut info = probe::probe(&client, &url).await?;
         // 站点限制（如阿里云盘需登录转存）→ 不创建任务
         if let Some(notice) = &info.notice {
@@ -737,6 +754,7 @@ impl Inner {
                 referer: info.referer.clone(),
                 // 直链 ≠ 分享页（解析/代取类站点）时记录原始页，供直链过期重解析
                 source_url: if dl_url != url { Some(url.clone()) } else { None },
+                canonical: canonical_key,
                 filename: name,
                 save_path: save_path.to_string_lossy().into_owned(),
                 total_size: info.total_size.unwrap_or(0),
@@ -802,6 +820,7 @@ impl Inner {
                 mirrors: Vec::new(),
                 referer: None,
                 source_url: None,
+                canonical: None,
                 filename: "磁力任务（等待元数据…）".into(),
                 save_path: dir_path.to_string_lossy().into_owned(),
                 total_size: 0,
@@ -2114,6 +2133,7 @@ mod tests {
                 mirrors: vec![],
                 referer: None,
                 source_url: None,
+                canonical: None,
                 filename: "test.mp4".into(),
                 save_path: dir.join("out.mp4").to_string_lossy().into_owned(),
                 total_size: 1_002_897_303,
@@ -2179,6 +2199,7 @@ mod tests {
                 mirrors: vec![p2.into()],
                 referer: None,
                 source_url: None,
+                canonical: None,
                 kind: TaskKind::Http,
                 info_hash: None,
                 filename: "test.tar.xz".into(),
