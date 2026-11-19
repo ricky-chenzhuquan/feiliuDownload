@@ -105,6 +105,45 @@ pub fn run() {
                 });
             }
 
+                // 自检 2：新站点解析 → 真实引擎 probe_url 链路（不下载，只探测）
+                // 覆盖：archive.org 视频/音频、Bandcamp 流、番剧免费集、番剧会员集提示
+                let probe_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(7)).await;
+                    let mgr = probe_handle.state::<TaskManager>();
+                    let cases: [(&str, &str, &str); 4] = [
+                        ("archive-video", "https://archive.org/details/BigBuckBunny_124", "archive.org/download"),
+                        ("bandcamp-track", "https://iksre.bandcamp.com/track/lake-shore", "bcbits.com"),
+                        ("bangumi-free", "https://www.bilibili.com/bangumi/play/ep70866", "bilivideo.com"),
+                        ("bangumi-paid", "https://www.bilibili.com/bangumi/play/ep72067", "会员"),
+                    ];
+                    for (label, url, expect) in cases {
+                        let started = std::time::Instant::now();
+                        match mgr.inner.probe_url(url).await {
+                            Ok(p) => {
+                                let hit = if expect == "会员" {
+                                    p.notice.as_deref().map_or(false, |n| n.contains("会员"))
+                                } else {
+                                    p.url.contains(expect) || p.filename.contains(expect)
+                                };
+                                eprintln!(
+                                    "[feiliu-selftest] {label}: {} {:.1}s 大小={} 文件名={:?} 提示={:?} 期望命中={}",
+                                    if hit { "成功" } else { "未命中期望" },
+                                    started.elapsed().as_secs_f64(),
+                                    p.total_size,
+                                    p.filename,
+                                    p.notice.as_deref().unwrap_or("-"),
+                                    hit
+                                );
+                            }
+                            Err(e) => eprintln!(
+                                "[feiliu-selftest] {label}: 失败 {:.1}s err={e}",
+                                started.elapsed().as_secs_f64()
+                            ),
+                        }
+                    }
+                });
+
             // 桌面端：托盘常驻（左键点击显示窗口，菜单可退出）
             #[cfg(desktop)]
             {

@@ -90,13 +90,17 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         .map(|e| e.direct_url.as_str())
         .filter(|s| !s.is_empty())
         .unwrap_or(url);
+    // 站点声明的 Referer 必须用于直链探测：番剧 CDN 对 PGC 内容无 Referer 直接 403
+    // （普通 BV 视频 CDN 不强制，故此前未暴露）
+    let site_referer = extracted.as_ref().and_then(|e| e.referer.clone());
 
     let mut last_err: Option<String> = None;
     for _attempt in 0..3 {
         let mut info = {
             // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
-            let r = range_probe_detail(client, target, None).await;
-            let h = head_probe_detail(client, target, None).await;
+            let ref_opt = site_referer.as_deref();
+            let r = range_probe_detail(client, target, ref_opt).await;
+            let h = head_probe_detail(client, target, ref_opt).await;
             match (r, h) {
                 (Some(i), _) => i,
                 (None, Some(i)) => i,
