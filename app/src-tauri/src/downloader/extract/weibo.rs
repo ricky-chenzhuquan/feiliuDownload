@@ -16,11 +16,20 @@ fn normalize_status_url(url: &str) -> Option<String> {
             return Some(format!("https://m.weibo.cn/status/{id}"));
         }
     }
-    // 新版 weibo.com/{用户id}/{博文bid}
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if segs.len() >= 3 && segs[1].chars().all(|c| c.is_ascii_digit()) {
-        return Some(format!("https://m.weibo.cn/status/{}", segs[2]));
+    // 新版 weibo.com/{用户id}/{博文bid}——锚定 weibo.com/ 后取段，
+    // 带/不带 scheme 均可（原实现按 segs[1] 判 uid，带 scheme 时 segs[1]
+    // 是域名段，导致完整 URL 解析失败）
+    if let Some(host_idx) = url.find("weibo.com/") {
+        let after = &url[host_idx + "weibo.com/".len()..];
+        let path = after.split(['?', '#']).next().unwrap_or(after);
+        let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        // segs[0] = 数字 uid，segs[1] = 博文 bid（字母数字混合）
+        if segs.len() >= 2
+            && segs[0].chars().all(|c| c.is_ascii_digit())
+            && !segs[1].is_empty()
+        {
+            return Some(format!("https://m.weibo.cn/status/{}", segs[1]));
+        }
     }
     None // 登录页等无效链接
 }
@@ -47,4 +56,42 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: None,
             webview_plan: None,
     })
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::*;
+
+    /// 新版格式带 scheme（此前 segs[1] 命中域名段而解析失败）
+    #[test]
+    fn test_normalize_new_format_with_scheme() {
+        assert_eq!(
+            normalize_status_url("https://weibo.com/1234567/AbCdEfG"),
+            Some("https://m.weibo.cn/status/AbCdEfG".into())
+        );
+    }
+
+    /// 分享文本中的无 scheme 形态（保持原有可用行为）
+    #[test]
+    fn test_normalize_new_format_without_scheme() {
+        assert_eq!(
+            normalize_status_url("weibo.com/1234567/AbCdEfG?from=share"),
+            Some("https://m.weibo.cn/status/AbCdEfG".into())
+        );
+    }
+
+    /// 老格式 /status/{id} 与登录页拒绝（行为不变）
+    #[test]
+    fn test_normalize_status_and_login_reject() {
+        assert_eq!(
+            normalize_status_url("https://m.weibo.cn/status/51234567890"),
+            Some("https://m.weibo.cn/status/51234567890".into())
+        );
+        assert_eq!(
+            normalize_status_url(
+                "https://weibo.com/newlogin?tabtype=weibo&gid=102803"
+            ),
+            None
+        );
+    }
 }
