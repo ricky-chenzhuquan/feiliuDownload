@@ -117,6 +117,9 @@ pub struct PersistedTask {
     pub mirrors: Vec<String>,
     #[serde(default)]
     pub referer: Option<String>,
+    /// 解析类任务的原始分享页 URL（直链有时效，404/403 时据此重解析）
+    #[serde(default)]
+    pub source_url: Option<String>,
     #[serde(default)]
     pub kind: TaskKind,
     #[serde(default)]

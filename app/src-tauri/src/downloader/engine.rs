@@ -41,6 +41,8 @@ pub struct TaskShared {
     pub error_flag: AtomicBool,
     /// 任务已从列表删除：meter 等后台循环据此停止推送
     pub removed: AtomicBool,
+    /// 直链过期救援已用过（仅一次，防重解析后仍 404 的死循环）
+    pub re_rescued: AtomicBool,
     /// 暂停/删除时唤醒停滞中的连接（瞬时中断）
     pub interrupt: tokio::sync::Notify,
 }
@@ -89,6 +91,9 @@ pub struct TaskMeta {
     mirrors: Vec<String>,
     /// 站点要求的 Referer（如 B 站 CDN）
     referer: Option<String>,
+    /// 解析类任务的原始分享页 URL（直链有时效——82dj 分钟级、B 站数小时——
+    /// 下载 404/403 时据此自动重新解析拿新直链）
+    source_url: Option<String>,
     filename: String,
     save_path: String,
     total_size: u64,
@@ -229,6 +234,7 @@ impl Inner {
                     info_hash: p.info_hash,
                     mirrors: p.mirrors,
                     referer: p.referer,
+                    source_url: p.source_url,
                     filename: p.filename,
                     save_path: p.save_path,
                     total_size: p.total_size,
@@ -248,6 +254,7 @@ impl Inner {
                 cancel_flag: AtomicBool::new(false),
                 error_flag: AtomicBool::new(false),
                 removed: AtomicBool::new(false),
+                re_rescued: AtomicBool::new(false),
                 interrupt: tokio::sync::Notify::new(),
             });
             let sidecar = Sidecar::from_save_path(Path::new(&shared.meta.read().unwrap().save_path));
@@ -275,6 +282,7 @@ impl Inner {
                         url: meta.url.clone(),
                         mirrors: meta.mirrors.clone(),
                         referer: meta.referer.clone(),
+                        source_url: meta.source_url.clone(),
                         kind: meta.kind,
                         info_hash: meta.info_hash.clone(),
                         filename: meta.filename.clone(),
@@ -604,6 +612,8 @@ impl Inner {
                 info_hash: None,
                 mirrors: mirrors.clone(),
                 referer: info.referer.clone(),
+                // 直链 ≠ 分享页（解析/代取类站点）时记录原始页，供直链过期重解析
+                source_url: if dl_url != url { Some(url.clone()) } else { None },
                 filename: name,
                 save_path: save_path.to_string_lossy().into_owned(),
                 total_size: info.total_size.unwrap_or(0),
@@ -623,6 +633,7 @@ impl Inner {
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
             removed: AtomicBool::new(false),
+            re_rescued: AtomicBool::new(false),
             interrupt: tokio::sync::Notify::new(),
         });
 
@@ -666,6 +677,7 @@ impl Inner {
                 info_hash,
                 mirrors: Vec::new(),
                 referer: None,
+                source_url: None,
                 filename: "磁力任务（等待元数据…）".into(),
                 save_path: dir_path.to_string_lossy().into_owned(),
                 total_size: 0,
@@ -685,6 +697,7 @@ impl Inner {
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
             removed: AtomicBool::new(false),
+            re_rescued: AtomicBool::new(false),
             interrupt: tokio::sync::Notify::new(),
         });
 
@@ -1206,8 +1219,47 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
             *shared.status.write().unwrap() = TaskStatus::Paused;
         }
         Flow::Fatal(e) => {
-            *shared.status.write().unwrap() = TaskStatus::Failed;
-            *shared.error.write().unwrap() = Some(e);
+            // 直链过期救援：解析类任务（记录了分享页 source_url）遇 404/403
+            // 时重新解析拿新直链（82dj 实测直链分钟级失效——重装/重启后自动
+            // 恢复的旧任务必 404）。分片保留（同文件 Range 内容一致），
+            // 回队列后由正常收尾的 dispatch 重新调度
+            let expired = e.contains("404") || e.contains("403");
+            let rescued = expired
+                && !shared.re_rescued.swap(true, Ordering::Relaxed)
+                && re_rescue_link(&inner, &shared).await;
+            if rescued {
+                let (url, mirrors, referer, save_path, filename, total, ranges) = {
+                    let m = shared.meta.read().unwrap();
+                    (
+                        m.url.clone(),
+                        m.mirrors.clone(),
+                        m.referer.clone(),
+                        m.save_path.clone(),
+                        m.filename.clone(),
+                        m.total_size,
+                        m.accept_ranges,
+                    )
+                };
+                let _ = sidecar.write_meta(&SidecarMeta {
+                    version: 1,
+                    url,
+                    mirrors,
+                    referer,
+                    save_path,
+                    filename,
+                    total_size: total,
+                    accept_ranges: ranges,
+                    // etag 置空：新直链的校验值与旧分片不同属预期，勿触发重置
+                    etag: None,
+                    last_modified: None,
+                    chunk_size: CHUNK_SIZE,
+                });
+                *shared.status.write().unwrap() = TaskStatus::Queued;
+                *shared.error.write().unwrap() = None;
+            } else {
+                *shared.status.write().unwrap() = TaskStatus::Failed;
+                *shared.error.write().unwrap() = Some(e);
+            }
         }
     }
 
@@ -1216,6 +1268,67 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
     inner.emit_progress(&id);
     inner.persist();
     inner.dispatch();
+}
+
+/// 直链过期救援：用分享页 source_url 重新解析（含 WebView 代取）拿新直链。
+/// 成功则更新 shared.meta（url/大小/断点；etag 置空防「文件已变化」误判
+/// 重置分片）并返回 true。失败返回 false（任务照常标 Failed）。
+async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
+    let Some(source) = shared.meta.read().unwrap().source_url.clone() else {
+        return false;
+    };
+    let client = probe::client();
+    let info = match probe::probe(&client, &source).await {
+        Ok(i) if i.notice.is_none() => i,
+        _ => return false,
+    };
+    let mut new_url = info.resolved_url.clone().unwrap_or_default();
+    if new_url.is_empty() || info.webview_plan.is_some() {
+        let (Some(plan), Some(app)) = (&info.webview_plan, inner.app.get()) else {
+            return false;
+        };
+        #[cfg(not(any(target_os = "ios", target_os = "android")))]
+        {
+            match crate::downloader::webview_extract::extract(app.clone(), plan).await {
+                Ok(u) if !u.is_empty() => new_url = u,
+                _ => return false,
+            }
+        }
+        #[cfg(any(target_os = "ios", target_os = "android"))]
+        {
+            let _ = app;
+            return false;
+        }
+    }
+    if new_url.is_empty() {
+        return false;
+    }
+    // 锁内先定好新 url/referer（guard 不可跨 await），探测在锁外做
+    let (url_new, referer_new) = {
+        let mut m = shared.meta.write().unwrap();
+        if new_url == m.url {
+            return false; // 直链未变，重试无意义
+        }
+        let referer_new = info.referer.clone().or_else(|| m.referer.clone());
+        m.url = new_url;
+        m.etag = None;
+        m.last_modified = None;
+        if info.referer.is_some() {
+            m.referer = info.referer.clone();
+        }
+        (m.url.clone(), referer_new)
+    };
+    // 新直链二次探测拿真实大小/断点（best-effort，失败沿用旧值）
+    if let Some(p2) =
+        probe::probe_direct_ref(&client, &url_new, referer_new.as_deref()).await
+    {
+        let mut m = shared.meta.write().unwrap();
+        if let Some(t) = p2.total_size {
+            m.total_size = t;
+        }
+        m.accept_ranges = p2.accept_ranges;
+    }
+    true
 }
 
 /// 速度计量 + 进度事件推送
@@ -1853,6 +1966,7 @@ mod tests {
                 info_hash: None,
                 mirrors: vec![],
                 referer: None,
+                source_url: None,
                 filename: "test.mp4".into(),
                 save_path: dir.join("out.mp4").to_string_lossy().into_owned(),
                 total_size: 1_002_897_303,
@@ -1872,6 +1986,7 @@ mod tests {
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
             removed: AtomicBool::new(false),
+            re_rescued: AtomicBool::new(false),
             interrupt: tokio::sync::Notify::new(),
         });
 
@@ -1916,6 +2031,7 @@ mod tests {
                 url: p1.into(),
                 mirrors: vec![p2.into()],
                 referer: None,
+                source_url: None,
                 kind: TaskKind::Http,
                 info_hash: None,
                 filename: "test.tar.xz".into(),
@@ -1937,6 +2053,7 @@ mod tests {
             cancel_flag: AtomicBool::new(false),
             error_flag: AtomicBool::new(false),
             removed: AtomicBool::new(false),
+            re_rescued: AtomicBool::new(false),
             interrupt: tokio::sync::Notify::new(),
         });
         let p0 = dir.join("part_000000");
