@@ -53,12 +53,14 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          ARGS=""
+          # --config 的 JSON 必须单引号直传：经变量拼接 + npm 转发会带上
+          # 字面反斜杠，tauri CLI 把 JSON 当文件路径（v0.1.1 签名构建实测）
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
             echo "updater signing enabled"
-            ARGS='--config "{\"bundle\":{\"createUpdaterArtifacts\":true}}"'
+            pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            pnpm tauri build
           fi
-          pnpm tauri build $ARGS
 
       - name: Collect artifacts (macOS)
         if: matrix.os == 'macos-latest'
