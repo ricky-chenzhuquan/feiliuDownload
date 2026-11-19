@@ -248,7 +248,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("{}（{} 个文件{sample_note}）", folder_name.trim_end_matches('.').trim(), total),
         referer: Some("https://www.lanzou.com/".into()),
         notice: Some(
-            "蓝奏云文件夹：可一键批量添加前 30 个文件（逐个通过内嵌 WebView 解析直链，速度较慢属预期）".into(),
+            "蓝奏云文件夹：可一键批量添加文件（逐个通过内嵌 WebView 解析直链，速度较慢属预期；单次上限可在设置中调整）".into(),
         ),
         webview_plan: None,
     })

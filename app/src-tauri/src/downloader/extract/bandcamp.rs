@@ -159,7 +159,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("{label}（{total} 首曲目{sample_note}）").to_string(),
         referer: None,
         notice: Some(format!(
-            "Bandcamp 专辑「{label}」含 {total} 首曲目{sample_note}。单曲流地址匿名可下：点「一键添加」批量下载（前 30 首），或粘贴单曲页链接单独下载",
+            "Bandcamp 专辑「{label}」含 {total} 首曲目{sample_note}。单曲流地址匿名可下：点「一键添加」按设置上限批量下载，或粘贴单曲页链接单独下载",
         )),
         webview_plan: None,
     })

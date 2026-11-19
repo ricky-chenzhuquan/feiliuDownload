@@ -3,7 +3,7 @@
 //! 匿名链路（实测 ss2722《学战都市Asterisk》12 集）：season API 匿名全通 →
 //! playurl（platform=html5）返回**单文件** MP4 durl（206/ftyp 头实测）——
 //! 番剧匿名画质上限 360p（高画质需登录，诚实现状）；直链需 Referer
-//! （与普通 B 站视频一致）。ss 页 = 整季（批量，上限 30 集），ep 页 = 单集直下。
+//! （与普通 B 站视频一致）。ss 页 = 整季（批量，上限走设置），ep 页 = 单集直下。
 use serde_json::Value;
 
 use super::helpers::clean_filename;
@@ -175,7 +175,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             .to_string(),
             referer: Some(BILI_REFERER.to_string()),
             notice: Some(format!(
-                "B站番剧「{title}」共 {total} 集{paid_note}{sample_note}。免费集匿名可下（画质以登录状态为准）：点「一键添加」批量下载（前 30 集），或粘贴单集页链接单独下载",
+                "B站番剧「{title}」共 {total} 集{paid_note}{sample_note}。免费集匿名可下（画质以登录状态为准）：点「一键添加」按设置上限批量下载，或粘贴单集页链接单独下载",
             )),
             webview_plan: None,
         });

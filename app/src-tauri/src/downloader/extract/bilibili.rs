@@ -296,7 +296,7 @@ fn collection_extracted(
             .to_string(),
         referer: Some("https://www.bilibili.com/".into()),
         notice: Some(
-            "B站合集/系列：可一键批量添加前 30 个视频（自动逐个解析直链建任务，上限 30 防直链过期）".into(),
+            "B站合集/系列：可一键批量添加视频（自动逐个解析直链建任务；单次上限可在设置中调整，防直链过期默认 30）".into(),
         ),
         webview_plan: None,
     }
