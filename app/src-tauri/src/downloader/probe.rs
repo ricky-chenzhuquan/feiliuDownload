@@ -95,8 +95,8 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     for _attempt in 0..3 {
         let mut info = {
             // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
-            let r = range_probe_detail(client, target).await;
-            let h = head_probe_detail(client, target).await;
+            let r = range_probe_detail(client, target, None).await;
+            let h = head_probe_detail(client, target, None).await;
             match (r, h) {
                 (Some(i), _) => i,
                 (None, Some(i)) => i,
@@ -139,10 +139,38 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     Err(last_err.unwrap_or_else(|| "探测失败".into()))
 }
 
+/// 对已知直链带 Referer 探测（WebView 代取站点的真实直链二次探测）：
+/// 82dj 等站点直链防盗链——无 Referer 直接 404，探测必须携带。
+/// Range 优先（206 带真实大小），HEAD 兜底，整体重试一次。纯 best-effort。
+pub async fn probe_direct_ref(
+    client: &Client,
+    url: &str,
+    referer: Option<&str>,
+) -> Option<ProbeInfo> {
+    for _attempt in 0..2 {
+        if let Some(i) = range_probe_detail(client, url, referer).await {
+            return Some(i);
+        }
+        if let Some(i) = head_probe_detail(client, url, referer).await {
+            return Some(i);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    }
+    None
+}
 
 
-pub async fn head_probe_detail(client: &Client, url: &str) -> Option<ProbeInfo> {
-    let resp = match client.head(url).send().await {
+
+pub async fn head_probe_detail(
+    client: &Client,
+    url: &str,
+    referer: Option<&str>,
+) -> Option<ProbeInfo> {
+    let mut req = client.head(url);
+    if let Some(r) = referer {
+        req = req.header(reqwest::header::REFERER, r);
+    }
+    let resp = match req.send().await {
         Ok(r) => {
             eprintln!("[feiliu-probe] head: status={} url={}", r.status(), url);
             r
@@ -181,12 +209,18 @@ pub async fn head_probe_detail(client: &Client, url: &str) -> Option<ProbeInfo> 
     })
 }
 
-pub async fn range_probe_detail(client: &Client, url: &str) -> Option<ProbeInfo> {
-    let resp = match client
+pub async fn range_probe_detail(
+    client: &Client,
+    url: &str,
+    referer: Option<&str>,
+) -> Option<ProbeInfo> {
+    let mut req = client
         .get(url)
-        .header(reqwest::header::RANGE, "bytes=0-0")
-        .send()
-        .await
+        .header(reqwest::header::RANGE, "bytes=0-0");
+    if let Some(r) = referer {
+        req = req.header(reqwest::header::REFERER, r);
+    }
+    let resp = match req.send().await
     {
         Ok(r) => {
             eprintln!("[feiliu-probe] range: status={} url={}", r.status(), url);
@@ -325,5 +359,30 @@ mod tests {
             parse_ext_value("UTF-8''4HU.TV_720.mp4"),
             Some("4HU.TV_720.mp4".into())
         );
+    }
+
+    /// 直链带 Referer 二次探测：已知大小文件（假 Referer 不影响服务器响应，
+    /// 验证头部传递与大小解析链路）
+    #[tokio::test]
+    async fn test_probe_direct_ref() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let c = client();
+        let info = probe_direct_ref(
+            &c,
+            "https://proof.ovh.net/files/10Mb.dat",
+            Some("https://www.82dj.com/"),
+        )
+        .await
+        .expect("直链二次探测失败");
+        assert_eq!(
+            info.total_size,
+            Some(10 * 1024 * 1024),
+            "应拿到真实文件大小: {:?}",
+            info.total_size
+        );
+        assert!(info.accept_ranges, "proof.ovh 支持 Range");
+        println!("probe_direct_ref OK: {:?}", info.total_size);
     }
 }

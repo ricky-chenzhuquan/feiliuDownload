@@ -515,7 +515,7 @@ impl Inner {
                 return Err("该链接已在任务列表中，请勿重复添加".into());
             }
         }
-        let info = probe::probe(&client, &url).await?;
+        let mut info = probe::probe(&client, &url).await?;
         // 站点限制（如阿里云盘需登录转存）→ 不创建任务
         if let Some(notice) = &info.notice {
             return Err(format!("{}：{}", info.filename.as_deref().unwrap_or("分享内容"), notice));
@@ -543,6 +543,19 @@ impl Inner {
         }
         if dl_url.is_empty() {
             return Err("未解析出可下载的直链".into());
+        }
+        // WebView 代取站点：对真实直链带 Referer 二次探测——首次探测的是
+        // 分享页（HTML），大小/断点支持都不可用；82dj 等直链无 Referer
+        // 还会 404。best-effort：探测失败不阻塞建任务（下载仍可行）
+        if info.webview_plan.is_some() {
+            if let Some(p2) =
+                probe::probe_direct_ref(&client, &dl_url, info.referer.as_deref()).await
+            {
+                info.total_size = p2.total_size;
+                info.accept_ranges = p2.accept_ranges;
+                info.etag = p2.etag;
+                info.last_modified = p2.last_modified;
+            }
         }
 
         let name = sanitize_name(
@@ -1033,7 +1046,9 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
     // 校验/恢复：重探测确认远端文件未变化
     if meta.accept_ranges {
         let client = probe::client();
-        if let Some(info) = probe::range_probe_detail(&client, &meta.url).await {
+        if let Some(info) =
+            probe::range_probe_detail(&client, &meta.url, meta.referer.as_deref()).await
+        {
             let changed = info.total_size.is_some_and(|t| t != meta.total_size)
                 || both_present_diff(&info.etag, &meta.etag);
             if changed {
@@ -1885,8 +1900,8 @@ mod tests {
         let client = probe::client();
         let p1 = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
         let p2 = "https://mirrors.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
-        let i1 = probe::range_probe_detail(&client, p1).await.expect("主站探测失败");
-        let i2 = probe::range_probe_detail(&client, p2).await.expect("镜像探测失败");
+        let i1 = probe::range_probe_detail(&client, p1, None).await.expect("主站探测失败");
+        let i2 = probe::range_probe_detail(&client, p2, None).await.expect("镜像探测失败");
         let t1 = i1.total_size.expect("主站无大小");
         let t2 = i2.total_size.expect("镜像无大小");
         assert_eq!(t1, t2, "两源大小不一致");
@@ -2028,8 +2043,8 @@ mod tests {
             Err(e) => println!("probe Err: {e}"),
         }
         // 探测子步骤独立复现
-        println!("range_probe: {:?}", probe::range_probe_detail(&client, url).await.is_some());
-        println!("head_probe: {:?}", probe::head_probe_detail(&client, url).await.is_some());
+        println!("range_probe: {:?}", probe::range_probe_detail(&client, url, None).await.is_some());
+        println!("head_probe: {:?}", probe::head_probe_detail(&client, url, None).await.is_some());
     }
 
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件
