@@ -482,7 +482,7 @@ impl Inner {
     ) -> Result<BatchSummary, String> {
         let (name, urls) = crate::downloader::extract::bangumi::season_ep_urls(&url)
             .await
-            .ok_or("番剧解析失败")?;
+            .ok_or("番剧解析失败（可能全部剧集为会员专享，或链接已失效）")?;
         let cap = 30.min(urls.len()); // 上限 30 集，直链有时效
         let mut added = 0u32;
         let mut skipped = 0u32;
