@@ -37,7 +37,7 @@
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.
 - 🔀 **Multi-source (mirror) downloading** — paste extra mirror URLs for the same file; chunks rotate across CDNs so throughput stacks.
-- 📺 **Site extraction (15+ platforms)** — Bilibili (video / collection / series with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp; cloud-drive/CSDN shares are listed with honest guidance.
+- 📺 **Site extraction (15+ platforms)** — Bilibili (video / collection / series with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp (albums one-click batch); cloud-drive/CSDN shares are listed with honest guidance.
 - 🧲 **BitTorrent** — magnet links & .torrent files powered by librqbit (DHT + trackers).
 - ⏸️ **Pause / resume / restart-safe** — chunk progress lives on disk in real time; interrupted downloads resume from the exact byte. Optional **auto-resume on launch**.
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.

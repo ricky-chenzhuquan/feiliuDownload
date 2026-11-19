@@ -20,7 +20,7 @@
 
 mod alipan;
 mod archive;
-mod bandcamp;
+pub mod bandcamp;
 mod baidu;
 mod csdn;
 mod dj82;

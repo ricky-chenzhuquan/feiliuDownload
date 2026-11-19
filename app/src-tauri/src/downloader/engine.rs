@@ -393,6 +393,8 @@ impl Inner {
             && lower.contains("/s/")
         {
             Some("lanzou_folder".to_string())
+        } else if notice.is_some() && lower.contains("bandcamp.com") && lower.contains("/album/") {
+            Some("bandcamp_album".to_string())
         } else {
             None
         };
@@ -458,6 +460,37 @@ impl Inner {
             {
                 Ok(_) => added += 1,
                 Err(_) => skipped += 1, // 下架/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
+    /// Bandcamp 专辑一键批量：逐首走单曲解析建任务（流地址有时效，上限 30 首）
+    pub async fn add_bandcamp_album(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::bandcamp::album_track_urls(&url)
+            .await
+            .ok_or("专辑解析失败")?;
+        let cap = 30.min(urls.len()); // 上限 30 首，流地址带 ts 签名有时效
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 无流/重复/失败
             }
         }
         Ok(BatchSummary {

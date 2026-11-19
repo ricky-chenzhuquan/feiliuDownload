@@ -37,6 +37,51 @@ fn html_unescape(s: &str) -> String {
         .replace("&amp;", "&")
 }
 
+/// 专辑页 → (专辑名, 曲目页 URL 列表)。全部曲目的流地址就在专辑页 JSON 里，
+/// 批量时逐首走单曲解析流程（流地址带 ts 签名有时效，不提前直链化）
+pub async fn album_track_urls(url: &str) -> Option<(String, Vec<String>)> {
+    let lower = url.to_lowercase();
+    if !lower.contains("bandcamp.com") || !lower.contains("/album/") {
+        return None;
+    }
+    let scheme_end = url.find("://")? + 3;
+    let host_end = url[scheme_end..]
+        .find('/')
+        .map(|i| scheme_end + i)
+        .unwrap_or(url.len());
+    let base = &url[..host_end];
+    let http = client()?;
+    let page = http.get(url).send().await.ok()?.text().await.ok()?;
+    let tralbum = extract_tralbum(&page)?;
+    let artist = tralbum
+        .get("artist")
+        .and_then(|a| a.as_str())
+        .unwrap_or("")
+        .to_string();
+    let album_title = tralbum
+        .get("current")
+        .and_then(|c| c.get("title"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("专辑");
+    let tracks = tralbum.get("trackinfo")?.as_array()?;
+    let mut urls = Vec::new();
+    for t in tracks {
+        let Some(link) = t.get("title_link").and_then(|x| x.as_str()) else {
+            continue; // 无独立曲目页（极少数本地曲目），批量时跳过
+        };
+        urls.push(format!("{}{}", base, link));
+    }
+    if urls.is_empty() {
+        return None;
+    }
+    let label = if artist.is_empty() {
+        album_title.to_string()
+    } else {
+        format!("{artist}《{album_title}》")
+    };
+    Some((label, urls))
+}
+
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
     let lower = url.to_lowercase();
     if !lower.contains("bandcamp.com") || !(lower.contains("/album/") || lower.contains("/track/"))
@@ -114,7 +159,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("{label}（{total} 首曲目{sample_note}）").to_string(),
         referer: None,
         notice: Some(format!(
-            "Bandcamp 专辑「{label}」含 {total} 首曲目{sample_note}。单曲流地址匿名可下——把想下载的曲目页链接（…bandcamp.com/track/…）粘进来即可直接下载",
+            "Bandcamp 专辑「{label}」含 {total} 首曲目{sample_note}。单曲流地址匿名可下：点「一键添加」批量下载（前 30 首），或粘贴单曲页链接单独下载",
         )),
         webview_plan: None,
     })
@@ -152,6 +197,30 @@ mod tests {
             info.filename
         );
         println!("bandcamp album OK: {}", info.filename);
+    }
+
+    /// 真实专辑批量：专辑名 + 全部曲目页 URL（批量命令的数据源）
+    #[tokio::test]
+    async fn test_bandcamp_album_batch_urls() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let (name, urls) = album_track_urls(
+            "https://iksre.bandcamp.com/album/in-all-her-forms-sound-meditations-vol-2",
+        )
+        .await
+        .expect("专辑批量解析失败");
+        assert!(
+            name.contains("IKSRE") && name.contains("in all her forms"),
+            "专辑名应含艺术家与标题: {name}"
+        );
+        assert!(urls.len() >= 10, "应列出全部曲目: {}", urls.len());
+        assert!(
+            urls.iter().all(|u| u.contains("/track/")),
+            "全部应为曲目页 URL: {:?}",
+            &urls[..2.min(urls.len())]
+        );
+        println!("bandcamp batch OK: {name}（{} 首）", urls.len());
     }
 
     /// 真实曲目（上专辑第 1 首）：mp3-128 直链 + 艺术家文件名

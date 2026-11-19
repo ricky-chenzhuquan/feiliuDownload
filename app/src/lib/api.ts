@@ -35,7 +35,12 @@ export interface ProbeResult {
   total_size: number;
   accept_ranges: boolean;
   notice: string | null;
-  batch_kind: "netease_playlist" | "bilibili_collection" | "lanzou_folder" | null;
+  batch_kind:
+    | "netease_playlist"
+    | "bilibili_collection"
+    | "lanzou_folder"
+    | "bandcamp_album"
+    | null;
 }
 
 export interface BatchSummary {
@@ -93,6 +98,12 @@ export const addLanzouFolder = (
   dir?: string,
   connections?: number,
 ) => invoke<BatchSummary>("add_lanzou_folder", { url, dir, connections });
+
+export const addBandcampAlbum = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_bandcamp_album", { url, dir, connections });
 
 export const addTask = (
   url: string,

@@ -49,6 +49,7 @@ pub fn run() {
             commands::add_netease_playlist,
             commands::add_bilibili_collection,
             commands::add_lanzou_folder,
+            commands::add_bandcamp_album,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,
