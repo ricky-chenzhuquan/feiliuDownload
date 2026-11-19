@@ -127,6 +127,13 @@ export const resumeTask = (id: string) => invoke<void>("resume_task", { id });
 
 export const pauseAllTasks = () => invoke<void>("pause_all_tasks");
 
+export interface LifetimeStats {
+  lifetime_downloaded: number;
+  lifetime_tasks: number;
+}
+
+export const getStats = () => invoke<LifetimeStats>("get_stats");
+
 export const clearCompletedTasks = () =>
   invoke<number>("clear_completed_tasks");
 

@@ -68,6 +68,7 @@ pub fn run() {
             commands::check_for_update,
             commands::install_update,
             commands::probe_mirrors,
+            commands::get_stats,
         ])
         .setup(|app| {
             set_app_handle(app.handle().clone());

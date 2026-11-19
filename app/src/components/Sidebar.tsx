@@ -1,4 +1,5 @@
-import type { TaskSnapshot } from "../lib/api";
+import { useEffect, useState } from "react";
+import { getStats, type LifetimeStats, type TaskSnapshot } from "../lib/api";
 import { formatBytes, formatSpeed } from "../lib/format";
 import { IconBolt, IconCheck, IconDownload, IconSettings, Logo } from "./Icons";
 
@@ -16,8 +17,19 @@ export default function Sidebar({ view, onView, tasks }: Props) {
   const totalSpeed = tasks
     .filter((t) => t.status === "downloading")
     .reduce((s, t) => s + t.speed_bps, 0);
-  const totalDownloaded = tasks.reduce((s, t) => s + t.downloaded, 0);
-  const totalCount = tasks.length;
+  const [stats, setStats] = useState<LifetimeStats | null>(null);
+  useEffect(() => {
+    let live = true;
+    getStats()
+      .then((s) => live && setStats(s))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tasks]);
+
+  const totalDownloaded = stats?.lifetime_downloaded ?? 0;
+  const totalCount = stats?.lifetime_tasks ?? tasks.length;
 
   return (
     <aside className="sidebar">

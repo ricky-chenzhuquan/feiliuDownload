@@ -38,6 +38,13 @@ pub struct ProbeResult {
     pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
 }
 
+/// 生命周期统计（跨「清除已完成」持久）
+#[derive(Debug, Clone, Serialize)]
+pub struct StatsSnapshot {
+    pub lifetime_downloaded: u64,
+    pub lifetime_tasks: u64,
+}
+
 /// 歌单批量添加结果
 #[derive(Debug, Clone, Serialize)]
 pub struct BatchSummary {

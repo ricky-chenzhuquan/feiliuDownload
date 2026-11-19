@@ -19,8 +19,8 @@ use tokio::io::AsyncWriteExt;
 use crate::downloader::probe::{self, sanitize_filename};
 use crate::downloader::state::{load_task_list, save_task_list, Sidecar, SidecarMeta, CHUNK_SIZE};
 use crate::downloader::types::{
-    BatchSummary, MirrorProbe, PersistedTask, ProbeResult, Settings, TaskEvent, TaskKind,
-    TaskSnapshot, TaskStatus,
+    BatchSummary, MirrorProbe, PersistedTask, ProbeResult, Settings, StatsSnapshot, TaskEvent,
+    TaskKind, TaskSnapshot, TaskStatus,
 };
 
 const MAX_CHUNK_RETRIES: u32 = 10;
@@ -120,6 +120,9 @@ pub struct Inner {
     settings: RwLock<Settings>,
     tasks_json: OnceLock<PathBuf>,
     settings_json: OnceLock<PathBuf>,
+    stats_json: OnceLock<PathBuf>,
+    lifetime_downloaded: AtomicU64,
+    lifetime_tasks: AtomicU64,
     torrent_session: tokio::sync::OnceCell<Arc<librqbit::Session>>,
 }
 
@@ -139,6 +142,9 @@ impl TaskManager {
                 settings: RwLock::new(Settings::default()),
                 tasks_json: OnceLock::new(),
                 settings_json: OnceLock::new(),
+                stats_json: OnceLock::new(),
+                lifetime_downloaded: AtomicU64::new(0),
+                lifetime_tasks: AtomicU64::new(0),
                 torrent_session: tokio::sync::OnceCell::new(),
             }),
         }
@@ -155,6 +161,8 @@ impl Inner {
             .app_data_dir()
             .unwrap_or_else(|_| PathBuf::from("."));
         let _ = self.tasks_json.set(data_dir.join("tasks.json"));
+        let _ = self.stats_json.set(data_dir.join("stats.json"));
+        self.load_stats();
         let cfg_dir = app
             .path()
             .app_config_dir()
@@ -305,6 +313,48 @@ impl Inner {
     fn persist(&self) {
         let Some(path) = self.tasks_json.get() else { return };
         save_task_list(path, &self.build_task_list());
+    }
+
+    // ---------- 生命周期统计 ----------
+
+    /// 任务完成：累计下载字节（跨「清除已完成」持久）
+    fn record_completion(&self, bytes: u64) {
+        self.lifetime_downloaded.fetch_add(bytes, Ordering::Relaxed);
+        self.save_stats();
+    }
+
+    /// 任务创建：累计任务数
+    fn record_task_added(&self) {
+        self.lifetime_tasks.fetch_add(1, Ordering::Relaxed);
+        self.save_stats();
+    }
+
+    fn load_stats(&self) {
+        let Some(path) = self.stats_json.get() else { return };
+        if let Ok(d) = std::fs::read(path) {
+            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&d) {
+                let dl = v.get("lifetime_downloaded").and_then(|x| x.as_u64()).unwrap_or(0);
+                let tk = v.get("lifetime_tasks").and_then(|x| x.as_u64()).unwrap_or(0);
+                self.lifetime_downloaded.store(dl, Ordering::Relaxed);
+                self.lifetime_tasks.store(tk, Ordering::Relaxed);
+            }
+        }
+    }
+
+    fn save_stats(&self) {
+        let Some(path) = self.stats_json.get() else { return };
+        let v = serde_json::json!({
+            "lifetime_downloaded": self.lifetime_downloaded.load(Ordering::Relaxed),
+            "lifetime_tasks": self.lifetime_tasks.load(Ordering::Relaxed),
+        });
+        let _ = std::fs::write(path, v.to_string());
+    }
+
+    pub fn stats(&self) -> StatsSnapshot {
+        StatsSnapshot {
+            lifetime_downloaded: self.lifetime_downloaded.load(Ordering::Relaxed),
+            lifetime_tasks: self.lifetime_tasks.load(Ordering::Relaxed),
+        }
     }
 
     fn emit_list(&self) {
@@ -716,6 +766,7 @@ impl Inner {
             tasks.insert(id.clone(), shared);
             order.push(id.clone());
         }
+        self.record_task_added();
         self.persist();
         self.emit_list();
         self.dispatch();
@@ -1108,6 +1159,7 @@ async fn run_torrent(inner: &Arc<Inner>, id: String, shared: Arc<TaskShared>) {
         *shared.status.write().unwrap() = TaskStatus::Completed;
         let st = handle.stats();
         shared.downloaded.store(st.progress_bytes, Ordering::Relaxed);
+        inner.record_completion(st.progress_bytes);
     }
     if cancelled {
         // 交由 delete_task 走 session.delete；此处仅暂停避免继续下载
@@ -1277,6 +1329,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
                     if meta.total_size > 0 {
                         shared.downloaded.store(meta.total_size, Ordering::Relaxed);
                     }
+                    inner.record_completion(meta.total_size);
                 }
                 Ok(Err(e)) => {
                     *shared.status.write().unwrap() = TaskStatus::Failed;
@@ -2327,5 +2380,41 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 生命周期统计：累计记账 + stats.json 持久化往返（清除已完成不影响）
+    #[test]
+    fn test_lifetime_stats_persist_roundtrip() {
+        let tmp = std::env::temp_dir().join(format!(
+            "feiliu-stats-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let path = tmp.join("stats.json");
+
+        let mgr = TaskManager::new();
+        mgr.inner.stats_json.set(path.clone()).unwrap();
+        mgr.inner.record_task_added();
+        mgr.inner.record_task_added();
+        mgr.inner.record_completion(1024);
+        mgr.inner.record_completion(2048);
+        assert_eq!(mgr.inner.stats().lifetime_tasks, 2);
+        assert_eq!(mgr.inner.stats().lifetime_downloaded, 3072);
+
+        // 模拟重启：新实例从磁盘加载
+        let mgr2 = TaskManager::new();
+        mgr2.inner.stats_json.set(path.clone()).unwrap();
+        mgr2.inner.load_stats();
+        assert_eq!(mgr2.inner.stats().lifetime_tasks, 2, "重启后任务数应还原");
+        assert_eq!(
+            mgr2.inner.stats().lifetime_downloaded,
+            3072,
+            "重启后累计字节应还原"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }

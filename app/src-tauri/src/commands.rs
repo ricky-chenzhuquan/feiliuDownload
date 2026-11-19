@@ -6,7 +6,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::downloader::engine::TaskManager;
 use crate::downloader::types::{
-    BatchSummary, MirrorProbe, ProbeResult, Settings, TaskSnapshot,
+    BatchSummary, MirrorProbe, ProbeResult, Settings, StatsSnapshot, TaskSnapshot,
 };
 
 #[tauri::command]
@@ -158,6 +158,12 @@ pub async fn delete_task(
     delete_file: bool,
 ) -> Result<(), String> {
     state.inner.delete_task(&id, delete_file).await
+}
+
+/// 生命周期统计（跨「清除已完成」持久）
+#[tauri::command]
+pub fn get_stats(state: State<'_, TaskManager>) -> StatsSnapshot {
+    state.inner.stats()
 }
 
 #[tauri::command]
