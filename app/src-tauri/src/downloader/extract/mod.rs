@@ -104,6 +104,39 @@ mod canonical_tests {
         println!("canonical douyin OK: {key}");
     }
 
+    #[test]
+    fn test_canonical_key_more_sites() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        // 快手
+        assert_eq!(
+            rt.block_on(canonical_key(
+                "https://www.kuaishou.com/short-video/3xabc123def456"
+            )),
+            Some("ks:3xabc123def456".into())
+        );
+        // Twitter（x.com 与 twitter.com 同键）
+        assert_eq!(
+            rt.block_on(canonical_key("https://x.com/NASA/status/2122404409292337592")),
+            rt.block_on(canonical_key(
+                "https://twitter.com/NASA/status/2122404409292337592?s=20"
+            ))
+        );
+        // 微博新旧两形态：键取博文 id
+        assert_eq!(
+            rt.block_on(canonical_key("https://weibo.com/1234567/AbCdEfG")),
+            Some("wb:AbCdEfG".into())
+        );
+        assert_eq!(
+            rt.block_on(canonical_key("https://m.weibo.cn/status/51234567890")),
+            Some("wb:51234567890".into())
+        );
+        // 82DJ
+        assert_eq!(
+            rt.block_on(canonical_key("https://www.82dj.com/play/31534")),
+            Some("dj82:31534".into())
+        );
+    }
+
     /// 真实 b23.tv 短链：键应与 www 形态一致（跨形态去重的核心场景）
     #[tokio::test]
     async fn test_canonical_key_b23tv_real() {
@@ -281,6 +314,66 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             if !digits.is_empty() {
                 return Some(format!("ne:{digits}"));
             }
+        }
+        return None;
+    }
+    // 快手（short-video/{hex32id}）
+    if lower.contains("kuaishou.com") {
+        if let Some(i) = lower.find("/short-video/") {
+            let id: String = url[i + "/short-video/".len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric())
+                .collect();
+            if !id.is_empty() {
+                return Some(format!("ks:{id}"));
+            }
+        }
+        return None;
+    }
+    // Twitter/X（推文 id）
+    if lower.contains("x.com/") || lower.contains("twitter.com/") {
+        if let Some(i) = lower.find("/status/") {
+            let digits: String = url[i + "/status/".len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if !digits.is_empty() {
+                return Some(format!("tw:{digits}"));
+            }
+        }
+        return None;
+    }
+    // 微博（/status/{id} 与 新版 weibo.com/{用户}/{博文}）
+    if lower.contains("weibo.c") {
+        if let Some(i) = lower.find("/status/") {
+            let id: String = url[i + "/status/".len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric())
+                .collect();
+            if !id.is_empty() {
+                return Some(format!("wb:{id}"));
+            }
+        }
+        // 新版 weibo.com/{用户}/{博文}（带或不带 scheme 均可）
+        if let Some(host_idx) = lower.find("weibo.com/") {
+            let after = &url[host_idx + "weibo.com/".len()..];
+            let path = after.split(['?', '#']).next().unwrap_or(after);
+            let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+            if segs.len() >= 2 && !segs[1].is_empty() {
+                return Some(format!("wb:{}", segs[1]));
+            }
+        }
+        return None;
+    }
+    // 82DJ（play/{id}）
+    if lower.contains("82dj.com/play/") {
+        let idx = lower.find("/play/")? + "/play/".len();
+        let digits: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if !digits.is_empty() {
+            return Some(format!("dj82:{digits}"));
         }
         return None;
     }
