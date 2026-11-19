@@ -151,6 +151,28 @@ export default function SettingsView({ onLoaded }: Props) {
 
         <div className="field">
           <label>
+            批量添加上限
+            <span className="label-hint">歌单/合集/专辑/番剧一键批量单次最多加 {settings.batch_limit} 个</span>
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={500}
+            value={settings.batch_limit}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v)) setLocal({ ...settings, batch_limit: v });
+            }}
+            onBlur={(e) => {
+              const v = Math.round(Number(e.target.value));
+              const clamped = Number.isFinite(v) ? Math.min(500, Math.max(1, v)) : 30;
+              setLocal({ ...settings, batch_limit: clamped });
+            }}
+          />
+        </div>
+
+        <div className="field">
+          <label>
             同时下载任务数
             <span className="label-hint">{settings.max_concurrent_tasks} 个</span>
           </label>

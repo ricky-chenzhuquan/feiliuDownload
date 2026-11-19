@@ -86,10 +86,17 @@ pub struct Settings {
     pub clipboard_watch: bool,
     #[serde(default = "default_true")]
     pub close_to_tray: bool,
+    /// 一键批量的单次添加上限（默认 30：防直链过期与请求风暴；1–500 可调）
+    #[serde(default = "default_batch_limit")]
+    pub batch_limit: u32,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_batch_limit() -> u32 {
+    30
 }
 
 impl Default for Settings {
@@ -104,6 +111,7 @@ impl Default for Settings {
             auto_resume_on_launch: true,
             clipboard_watch: true,
             close_to_tray: true,
+            batch_limit: 30,
         }
     }
 }
@@ -142,4 +150,18 @@ pub struct PersistedTask {
 pub enum TaskEvent {
     Progress { task: TaskSnapshot },
     List { tasks: Vec<TaskSnapshot> },
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+
+    /// 旧版 settings.json（无 batch_limit 字段）加载后应得到默认 30
+    #[test]
+    fn test_settings_backward_compat() {
+        let old = r#"{"download_dir":"/tmp","max_connections":16,"max_concurrent_tasks":3}"#;
+        let st: Settings = serde_json::from_str(old).expect("旧配置应能加载");
+        assert_eq!(st.batch_limit, 30, "缺省批量上限应为 30");
+        assert!(st.auto_resume_on_launch, "布尔缺省应默认开");
+    }
 }

@@ -421,7 +421,7 @@ impl Inner {
         let (name, urls) = crate::downloader::extract::netease::playlist_song_urls(&url)
             .await
             .ok_or("歌单解析失败")?;
-        let cap = 30.min(urls.len()); // 上限 30 首，避免 CDN 直链过期与请求风暴
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len()); // 设置上限，上限 30 首，避免 CDN 直链过期与请求风暴
         let mut added = 0u32;
         let mut skipped = 0u32;
         for u in &urls[..cap] {
@@ -452,7 +452,7 @@ impl Inner {
         let (name, urls) = crate::downloader::extract::bilibili::collection_video_urls(&url)
             .await
             .ok_or("合集解析失败")?;
-        let cap = 30.min(urls.len()); // 上限 30 个，B 站 CDN 直链有时效
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len()); // 设置上限，上限 30 个，B 站 CDN 直链有时效
         let mut added = 0u32;
         let mut skipped = 0u32;
         for u in &urls[..cap] {
@@ -483,7 +483,7 @@ impl Inner {
         let (name, urls) = crate::downloader::extract::bangumi::season_ep_urls(&url)
             .await
             .ok_or("番剧解析失败（可能全部剧集为会员专享，或链接已失效）")?;
-        let cap = 30.min(urls.len()); // 上限 30 集，直链有时效
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len()); // 设置上限，上限 30 集，直链有时效
         let mut added = 0u32;
         let mut skipped = 0u32;
         for u in &urls[..cap] {
@@ -514,7 +514,7 @@ impl Inner {
         let (name, urls) = crate::downloader::extract::bandcamp::album_track_urls(&url)
             .await
             .ok_or("专辑解析失败")?;
-        let cap = 30.min(urls.len()); // 上限 30 首，流地址带 ts 签名有时效
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len()); // 设置上限，上限 30 首，流地址带 ts 签名有时效
         let mut added = 0u32;
         let mut skipped = 0u32;
         for u in &urls[..cap] {
@@ -545,7 +545,7 @@ impl Inner {
         let (name, urls) = crate::downloader::extract::lanzou::folder_file_urls(&url)
             .await
             .ok_or("文件夹解析失败")?;
-        let cap = 30.min(urls.len()); // 上限 30 个，每个文件一次 WebView 代取
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len()); // 设置上限，上限 30 个，每个文件一次 WebView 代取
         let mut added = 0u32;
         let mut skipped = 0u32;
         for u in &urls[..cap] {

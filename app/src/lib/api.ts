@@ -59,6 +59,7 @@ export interface Settings {
   auto_resume_on_launch: boolean;
   clipboard_watch: boolean;
   close_to_tray: boolean;
+  batch_limit: number;
 }
 
 export interface MirrorProbe {
