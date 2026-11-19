@@ -70,6 +70,20 @@ pub async fn add_bandcamp_album(
         .await
 }
 
+/// B 站番剧整季一键批量：逐集解析直链建任务，上限 30 集
+#[tauri::command]
+pub async fn add_bilibili_bangumi(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_bilibili_bangumi(url, dir, connections)
+        .await
+}
+
 /// 镜像测速：并行采样各镜像 256KB，返回可达性与速度
 #[tauri::command]
 pub async fn probe_mirrors(

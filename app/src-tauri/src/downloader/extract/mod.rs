@@ -2,6 +2,7 @@
 //!
 //! 模块结构（每站点一个文件，统一走 `Extracted`）：
 //! - `bilibili`：B 站视频页（含 b23.tv 短链）与 space 合集/系列页（一键批量）
+//! - `bangumi`：B 站番剧 ss/ep 页（pgc API → 单集 MP4 直链；整季一键批量）
 //! - `douyin`：抖音（含 v.douyin.com 短链，ttwid Cookie 方案，去水印）
 //! - `kuaishou`：快手
 //! - `xhs`：小红书（含 xhslink.cn/.com 短链）
@@ -24,6 +25,7 @@ pub mod bandcamp;
 mod baidu;
 mod csdn;
 mod dj82;
+pub mod bangumi;
 pub mod bilibili;
 mod douyin;
 mod generic;
@@ -65,6 +67,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
         || lower.contains("space.bilibili.com")
     {
         return bilibili::resolve(url).await;
+    }
+    // B 站番剧（ss/ep 页 → pgc API）
+    if lower.contains("bilibili.com/bangumi/play/") {
+        return bangumi::resolve(url).await;
     }
     // 抖音（含 v.douyin.com 短链）
     if lower.contains("douyin.com") || lower.contains("iesdouyin.com") {

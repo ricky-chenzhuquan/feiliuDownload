@@ -40,6 +40,7 @@ export interface ProbeResult {
     | "bilibili_collection"
     | "lanzou_folder"
     | "bandcamp_album"
+    | "bilibili_bangumi"
     | null;
 }
 
@@ -104,6 +105,12 @@ export const addBandcampAlbum = (
   dir?: string,
   connections?: number,
 ) => invoke<BatchSummary>("add_bandcamp_album", { url, dir, connections });
+
+export const addBilibiliBangumi = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_bilibili_bangumi", { url, dir, connections });
 
 export const addTask = (
   url: string,

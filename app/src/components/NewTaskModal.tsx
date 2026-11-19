@@ -4,6 +4,7 @@ import {
   addNeteasePlaylist,
   addBilibiliCollection,
   addBandcampAlbum,
+  addBilibiliBangumi,
   addLanzouFolder,
   getSettings,
   isMobile,
@@ -159,9 +160,12 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
             ? addLanzouFolder(probe.url, dir.trim() || undefined, connections)
             : kind === "bandcamp_album"
               ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
-              : addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
+              : kind === "bilibili_bangumi"
+                ? addBilibiliBangumi(probe.url, dir.trim() || undefined, connections)
+                : addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
       const r = await invokeBatch;
-      const unit = kind === "netease_playlist" || kind === "bandcamp_album" ? "首" : "个";
+      const unit =
+      kind === "netease_playlist" || kind === "bandcamp_album" ? "首" : "个";
       setBatchMsg(
         `已添加 ${r.added} ${unit}，跳过 ${r.skipped} ${unit}（失败/重复）` +
           (r.truncated ? `；较长已截取前 30 ${unit}` : ""),
@@ -311,7 +315,9 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                         ? "⚡ 一键添加文件夹文件（前 30 个）"
                         : probe.batch_kind === "bandcamp_album"
                           ? "⚡ 一键添加专辑曲目（前 30 首）"
-                          : "⚡ 一键添加免费歌曲（上限 30 首）"}
+                          : probe.batch_kind === "bilibili_bangumi"
+                            ? "⚡ 一键添加番剧集（前 30 集）"
+                            : "⚡ 一键添加免费歌曲（上限 30 首）"}
                 </button>
               )}
               {batchMsg && <div className="notice-ok">{batchMsg}</div>}

@@ -395,6 +395,8 @@ impl Inner {
             Some("lanzou_folder".to_string())
         } else if notice.is_some() && lower.contains("bandcamp.com") && lower.contains("/album/") {
             Some("bandcamp_album".to_string())
+        } else if notice.is_some() && lower.contains("bilibili.com/bangumi/play/ss") {
+            Some("bilibili_bangumi".to_string())
         } else {
             None
         };
@@ -460,6 +462,37 @@ impl Inner {
             {
                 Ok(_) => added += 1,
                 Err(_) => skipped += 1, // 下架/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
+    /// B 站番剧整季一键批量：逐集解析直链建任务（上限 30 集防直链过期）
+    pub async fn add_bilibili_bangumi(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::bangumi::season_ep_urls(&url)
+            .await
+            .ok_or("番剧解析失败")?;
+        let cap = 30.min(urls.len()); // 上限 30 集，直链有时效
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 无直链/重复
             }
         }
         Ok(BatchSummary {
