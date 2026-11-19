@@ -88,9 +88,11 @@ pub fn run() {
                     let started = std::time::Instant::now();
                     match downloader::webview_extract::extract(handle, &plan).await {
                         Ok(u) => eprintln!(
-                            "[feiliu-selftest] 成功 {:.1}s 直链长度={}",
+                            "[feiliu-selftest] 成功 {:.1}s 直链长度={} 尾10={:?} 尾部污染={}",
                             started.elapsed().as_secs_f64(),
-                            u.len()
+                            u.len(),
+                            &u[u.len().saturating_sub(10)..],
+                            u.ends_with('\\') || u.ends_with('"'),
                         ),
                         Err(e) => eprintln!(
                             "[feiliu-selftest] 失败 {:.1}s err={}",

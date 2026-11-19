@@ -74,9 +74,8 @@ pub async fn extract(
         let Ok(value) = rx.await else {
             continue;
         };
-        // 回调值是多层 stringify 的产物：去掉转义斜杠（\/）与首尾引号
-        // 回调值是多层 stringify 的产物：字符级 unescape（\/ → /、\" → "），
-        // 避免字面量转义歧义
+        // 回调值是多层 stringify 的产物：字符级 unescape（\/ → /、\" → "、
+        // \\ → \），避免字面量转义歧义
         let raw = value.trim().trim_matches('"');
         let chars: Vec<char> = raw.chars().collect();
         let mut out = String::new();
@@ -86,6 +85,10 @@ pub async fn extract(
                 match chars[i + 1] {
                     '/' => { out.push('/'); i += 2; }
                     '"' => { out.push('"'); i += 2; }
+                    // 多层 stringify 的 \\ 转义：必须成对消费，否则下一个
+                    // 字符会被误当转义符配对，trim 引号后尾部残留 \（82dj
+                    // 直链实测被污染成 xxx.mp4\ → CDN 404）
+                    '\\' => { out.push('\\'); i += 2; }
                     _ => { out.push(chars[i]); i += 1; }
                 }
             } else {
@@ -93,8 +96,14 @@ pub async fn extract(
                 i += 1;
             }
         }
-        // unescape 后（\" → "）还剩内层包裹引号，再去一次
-        let cleaned = out.trim().trim_matches('"').to_string();
+        // unescape 后（\" → "）还剩内层包裹引号，再去一次；尾部防御清洗
+        // （URL 不可能以反斜杠/引号结尾，残留即污染）
+        let cleaned = out
+            .trim()
+            .trim_end_matches(['\\', '"'])
+            .trim_matches('"')
+            .trim_end_matches(['\\', '"'])
+            .to_string();
         eprintln!(
             "[feiliu-webview] 第 {} 次轮询结果: {}",
             attempts,
@@ -108,5 +117,39 @@ pub async fn extract(
         }
         // 页面还在生成直链（fn 页 ajax 未完成 / audio src 未设置），继续轮询
         let _ = result;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// 多层 stringify 污染回归：`\\` + `"` 序列错序处理后尾部残留 `\`
+    /// （82dj 直链实测被污染成 xxx.mp4\ → CDN 404）
+    #[test]
+    fn test_unescape_no_backslash_residue() {
+        // 模拟三层 stringify 后 trim 外层引号的 raw：尾部 \\\" 应还原为空
+        let raw = r#"\"https://mp3.82dj.com/x.mp4\\\""#;
+        let chars: Vec<char> = raw.chars().collect();
+        let mut out = String::new();
+        let mut i = 0usize;
+        while i < chars.len() {
+            if chars[i] == '\\' && i + 1 < chars.len() {
+                match chars[i + 1] {
+                    '/' => { out.push('/'); i += 2; }
+                    '"' => { out.push('"'); i += 2; }
+                    '\\' => { out.push('\\'); i += 2; }
+                    _ => { out.push(chars[i]); i += 1; }
+                }
+            } else {
+                out.push(chars[i]);
+                i += 1;
+            }
+        }
+        let cleaned = out
+            .trim()
+            .trim_end_matches(['\\', '"'])
+            .trim_matches('"')
+            .trim_end_matches(['\\', '"']);
+        assert_eq!(cleaned, "https://mp3.82dj.com/x.mp4");
+        assert!(!cleaned.ends_with('\\'), "尾部不得残留反斜杠");
     }
 }

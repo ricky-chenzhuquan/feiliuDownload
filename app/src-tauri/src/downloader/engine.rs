@@ -543,6 +543,13 @@ impl Inner {
                         dl_url = crate::downloader::webview_extract::extract(app.clone(), plan)
                             .await
                             .map_err(|e| format!("WebView 代取直链失败: {e}"))?;
+                        // 防御清洗：直链不可能以反斜杠/引号结尾（多层 stringify
+                        // 转义偶发残留，实测 82dj 直链被污染 → CDN 404）
+                        dl_url = dl_url
+                            .trim_end_matches(['\\', '"'])
+                            .trim_matches('"')
+                            .trim_end_matches(['\\', '"'])
+                            .to_string();
                     } else {
                         return Err("应用尚未初始化完成".into());
                     }

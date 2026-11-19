@@ -385,4 +385,39 @@ mod tests {
         assert!(info.accept_ranges, "proof.ovh 支持 Range");
         println!("probe_direct_ref OK: {:?}", info.total_size);
     }
+
+    /// 诊断（临时）：82dj 直链 + 引擎同款 reqwest 客户端——验证 CDN 是否
+    /// 按 TLS/HTTP 客户端指纹拦截（curl 206 但 rustls 404）
+    #[tokio::test]
+    async fn test_diag_82dj_reqwest_fingerprint() {
+        let url = std::fs::read_to_string("/tmp/82dj_31533_url.txt")
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if url.is_empty() {
+            println!("无测试直链，跳过");
+            return;
+        }
+        let c = client();
+        let resp = c
+            .get(&url)
+            .header(reqwest::header::RANGE, "bytes=0-0")
+            .header(reqwest::header::REFERER, "https://www.82dj.com/")
+            .send()
+            .await
+            .unwrap();
+        println!(
+            "[诊断] reqwest + Referer → HTTP {}（404=指纹拦截实锤，206=链路无恙）",
+            resp.status()
+        );
+        if resp.status().as_u16() == 206 {
+            let cr = resp
+                .headers()
+                .get(reqwest::header::CONTENT_RANGE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            println!("[诊断] content-range: {cr}");
+        }
+    }
 }
