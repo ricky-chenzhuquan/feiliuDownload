@@ -38,14 +38,17 @@ try{
 /// WebView 代取结果：直链 + 可选会话凭据/真实文件名。
 /// cookie/name 由 plan.js 以 JSON {"url","cookie","name"} 形态返回（GoFile
 /// 等 CDN 校验会话级凭据的站点需要把 cookie 透传给下载通道；82dj/蓝奏云
-/// 老形态裸 URL 不受影响）。
+/// 老形态裸 URL 不受影响）。批量清单站点可附带 files/total（GoFile 列表形态）。
 pub struct WebviewResult {
     pub url: String,
     pub cookie: Option<String>,
     pub name: Option<String>,
+    /// 分享内全部文件（name, link）——批量命令用（如 gofile 多文件）
+    pub files: Vec<(String, String)>,
 }
 
-/// 解析轮询结果：JSON 对象（{"url","cookie","name"}，cookie/url 非空才收）或裸 URL/magnet
+/// 解析轮询结果：JSON 对象（{"url","cookie","name","files"}，url 非 http/magnet
+/// 时整体拒绝；files 为可选 [{name,link}] 数组）或裸 URL/magnet
 fn parse_webview_result(raw: &str) -> Option<WebviewResult> {
     if raw.starts_with('{') {
         let v: serde_json::Value = serde_json::from_str(raw).ok()?;
@@ -54,16 +57,31 @@ fn parse_webview_result(raw: &str) -> Option<WebviewResult> {
             return None;
         }
         let non_empty = |x: Option<&str>| x.filter(|s| !s.is_empty()).map(|s| s.to_string());
+        let files = v
+            .get("files")
+            .and_then(|f| f.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|it| {
+                        let name = it.get("name")?.as_str()?.to_string();
+                        let link = it.get("link")?.as_str()?.to_string();
+                        Some((name, link))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         Some(WebviewResult {
             url,
             cookie: non_empty(v.get("cookie").and_then(|c| c.as_str())),
             name: non_empty(v.get("name").and_then(|c| c.as_str())),
+            files,
         })
     } else if raw.starts_with("http") || raw.starts_with("magnet:") {
         Some(WebviewResult {
             url: raw.to_string(),
             cookie: None,
             name: None,
+            files: Vec::new(),
         })
     } else {
         None
@@ -193,7 +211,7 @@ mod tests {
         assert_eq!(r.name.as_deref(), Some("feiliu_fixture.txt"));
     }
 
-    /// JSON 形态：空 cookie/name 过滤为 None；url 非法时整体拒绝
+    /// JSON 形态：空 cookie/name 过滤为 None；url 非法时整体拒绝；files 数组解析
     #[test]
     fn test_parse_json_edge_cases() {
         let r = parse_webview_result(r#"{"url":"https://a.b/c.mp4","cookie":"","name":""}"#).expect("空串应过滤");
@@ -201,6 +219,20 @@ mod tests {
         assert_eq!(r.name, None);
         assert!(parse_webview_result(r#"{"url":"javascript:x"}"#).is_none(), "非 http url 拒绝");
         assert!(parse_webview_result(r#"{"cookie":"x"}"#).is_none(), "缺 url 拒绝");
+        // files 批量清单形态（GoFile 列表）
+        let r = parse_webview_result(
+            r#"{"url":"https://s.gofile.io/download/web/a/f.txt","cookie":"accountToken=x","name":"f.txt","files":[{"name":"f.txt","link":"https://s.gofile.io/download/web/a/f.txt"},{"name":"g.mp4","link":"https://s.gofile.io/download/web/b/g.mp4"}]}"#,
+        )
+        .expect("files 形态应解析");
+        assert_eq!(r.files.len(), 2);
+        assert_eq!(r.files[0], ("f.txt".into(), "https://s.gofile.io/download/web/a/f.txt".into()));
+        assert_eq!(r.files[1].0, "g.mp4");
+        // 缺 files 时为空
+        let r = parse_webview_result(r#"{"url":"https://a.b/c.mp4"}"#).expect("无 files 应解析");
+        assert!(r.files.is_empty());
+        // files 内缺 link 的项被过滤
+        let r = parse_webview_result(r#"{"url":"https://a.b/c.mp4","files":[{"name":"x"}]}"#).expect("坏项应过滤");
+        assert!(r.files.is_empty());
     }
 
     /// 裸 URL/magnet 老形态（蓝奏云/82dj）不受影响

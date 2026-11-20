@@ -102,6 +102,19 @@ mod canonical_tests {
         println!("canonical xhslink OK: {key}");
     }
 
+    /// GoFile：同分享不同批量序号是不同任务（批量建任务防撞查重）
+    #[tokio::test]
+    async fn test_canonical_key_gofile() {
+        let k0 = canonical_key("https://gofile.io/d/d1AQzWks").await;
+        assert_eq!(k0, Some("gofile:d1AQzWks".into()), "无序号键 = gofile:短码");
+        let k2 = canonical_key("https://gofile.io/d/d1AQzWks?feiliu_i=2").await;
+        assert_eq!(k2, Some("gofile:d1AQzWks:i2".into()), "序号入键");
+        assert_ne!(k0, k2, "不同序号必须不同键（批量任务不得被判重复）");
+        let k2b = canonical_key("https://www.gofile.io/d/d1AQzWks?feiliu_i=2&x=1").await;
+        assert_eq!(k2b, k2, "www/附加参数不影响序号键");
+        assert_eq!(canonical_key("https://gofile.io/uploadfile").await, None);
+    }
+
     /// 真实抖音短链（v.douyin.com）：应解析出 douyin:{id} 规范键
     #[tokio::test]
     async fn test_canonical_key_douyin_short_real() {
@@ -234,6 +247,33 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             })
             .unwrap_or(1);
         return Some(format!("bili:{bvid}:p{page}"));
+    }
+    // GoFile 分享（短码 + 批量序号：同分享不同序号是不同任务）
+    if lower.contains("gofile.io") && lower.contains("/d/") {
+        let idx = lower.find("/d/")? + "/d/".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if !code.is_empty() {
+            let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
+                let p = lower.find(m)?;
+                let digits: String = url[p + m.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if digits.is_empty() {
+                    None
+                } else {
+                    Some(digits)
+                }
+            });
+            return Some(match fi {
+                Some(i) => format!("gofile:{code}:i{i}"),
+                None => format!("gofile:{code}"),
+            });
+        }
+        return None;
     }
     // B 站番剧（ep/ss）
     if lower.contains("bilibili.com/bangumi/play/") {

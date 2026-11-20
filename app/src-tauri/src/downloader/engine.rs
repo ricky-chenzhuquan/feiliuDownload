@@ -627,6 +627,57 @@ impl Inner {
         })
     }
 
+    /// GoFile 分享一键批量：WebView 代取列文件清单 → 逐个 feiliu_i 序号建任务
+    /// （每个文件一次 WebView 代取，同蓝奏云文件夹模式；序号入 canonical 键防撞查重）
+    pub async fn add_gofile_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let app = self.app.get().ok_or("应用尚未初始化完成")?.clone();
+        let base = url
+            .split(['?', '&'])
+            .next()
+            .unwrap_or(&url)
+            .to_string();
+        let info = probe::probe(&probe::client(), &base).await.map_err(|e| e.to_string())?;
+        let plan = info
+            .webview_plan
+            .clone()
+            .ok_or("gofile 解析需 WebView 代取")?;
+        let wv = crate::downloader::webview_extract::extract(app, &plan)
+            .await
+            .map_err(|e| format!("文件清单代取失败: {e}"))?;
+        if wv.files.is_empty() {
+            return Err("分享内未解析出文件".into());
+        }
+        let cap = (self.settings().batch_limit as usize).max(1).min(wv.files.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for i in 0..cap {
+            let task_url = if i == 0 {
+                base.clone()
+            } else {
+                format!("{base}?feiliu_i={i}")
+            };
+            match self
+                .add_task(task_url, vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 代取超时/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: wv.name.unwrap_or_else(|| "gofile 分享".into()),
+            total: wv.files.len() as u32,
+            added,
+            skipped,
+            truncated: wv.files.len() > cap,
+        })
+    }
+
     pub async fn add_task(
         self: &Arc<Self>,
         url: String,
@@ -2250,7 +2301,7 @@ mod tests {
 
         let dir = std::env::temp_dir().join(format!("feiliu_ck_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let mk = |cookies: Option<String>, part_name: &str| {
+        let mk = |cookies: Option<String>, _part_name: &str| {
             Arc::new(TaskShared {
                 id: "ck-test".into(),
                 meta: RwLock::new(TaskMeta {

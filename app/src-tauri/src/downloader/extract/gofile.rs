@@ -16,8 +16,9 @@ use super::WebviewExtractPlan;
 const GOFILE_REFERER: &str = "https://gofile.io/";
 
 /// plan.js：等页面 guest 账号就绪 → generateWT 签名 → contents API →
-/// 遍历 children 取第一个文件 → JSON {url, cookie, name}。
-/// （2026-11-21 dev 自检 3 真机验证：5.6s 提取成功，下载 206）
+/// 遍历 children 收全部文件 → URL 带 ?feiliu_i=N 时返回该文件的单文件形态
+/// {url,cookie,name}，否则返回列表形态 {url,cookie,name,total,files:[{name,link}]}。
+/// （2026-11-21 dev 自检 3 真机验证：提取成功，下载 206）
 const GOFILE_JS: &str = r##"(()=>{ if(!window.__fl_go){ window.__fl_go=1; (async()=>{ try{
   let token=''; for(let i=0;i<16;i++){ token=(document.cookie.match(/accountToken=([^;]+)/)||[])[1]||''; if(token) break; await new Promise(r=>setTimeout(r,500)); }
   const m=location.pathname.match(/\/d\/([A-Za-z0-9]+)/); if(!m||!token){ window.__fl_go_r=''; return; }
@@ -26,7 +27,11 @@ const GOFILE_JS: &str = r##"(()=>{ if(!window.__fl_go){ window.__fl_go=1; (async
   const j=await r.json();
   if(j.status!=='ok'){ window.__fl_go_r=''; return; }
   const files=[]; (function walk(n){ const kids=n.children?Object.values(n.children):[]; for(const c of kids){ if(c.type==='file') files.push({link:c.link,name:c.name}); else walk(c);} })(j.data);
-  window.__fl_go_r=files.length?JSON.stringify({url:files[0].link,cookie:document.cookie,name:files[0].name}):'';
+  if(!files.length){ window.__fl_go_r=''; return; }
+  const qi=new URLSearchParams(location.search).get('feiliu_i');
+  const one=(f)=>JSON.stringify({url:f.link,cookie:document.cookie,name:f.name});
+  if(qi!=null && files[+qi]){ window.__fl_go_r=one(files[+qi]); return; }
+  window.__fl_go_r=JSON.stringify({url:files[0].link,cookie:document.cookie,name:files[0].name,files:files.map(f=>({name:f.name,link:f.link}))});
 }catch(e){ window.__fl_go_r=''; } })(); }
 return window.__fl_go_r||'';
 })()"##;
@@ -50,8 +55,30 @@ fn parse_share_code(url: &str) -> Option<String> {
     }
 }
 
+/// 批量序号：?feiliu_i=N（批量命令逐文件建任务的参数，canonical 键含之）
+fn parse_batch_index(url: &str) -> Option<usize> {
+    let lower = url.to_lowercase();
+    for m in ["?feiliu_i=", "&feiliu_i="] {
+        if let Some(p) = lower.find(m) {
+            let digits: String = url[p + m.len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if let Ok(n) = digits.parse::<usize>() {
+                return Some(n);
+            }
+        }
+    }
+    None
+}
+
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
     let code = parse_share_code(url)?;
+    // 批量序号需透传给代取页面（plan.js 按 location.search 选文件）
+    let plan_url = match parse_batch_index(url) {
+        Some(i) => format!("https://gofile.io/d/{code}?feiliu_i={i}"),
+        None => format!("https://gofile.io/d/{code}"),
+    };
     Some(super::Extracted {
         // 直链由 WebView 代取产出（页面内 wt 签名 + 会话 cookie）
         direct_url: String::new(),
@@ -60,7 +87,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some(GOFILE_REFERER.into()),
         notice: None,
         webview_plan: Some(WebviewExtractPlan {
-            url: format!("https://gofile.io/d/{code}"),
+            url: plan_url,
             js: GOFILE_JS.into(),
             timeout_ms: 30_000,
         }),
@@ -101,7 +128,7 @@ mod tests {
         println!("gofile probe OK: {} → {}", info.filename, plan.url);
     }
 
-    /// URL 形态：带 www / 尾部斜杠 / 附加路径均可提取短码
+    /// URL 形态：带 www / 尾部斜杠 / 附加路径均可提取短码；批量序号解析
     #[test]
     fn test_parse_share_code() {
         assert_eq!(
@@ -114,5 +141,8 @@ mod tests {
         );
         assert_eq!(super::parse_share_code("https://gofile.io/uploadfile"), None);
         assert_eq!(super::parse_share_code("https://example.com/d/abc"), None);
+        assert_eq!(super::parse_batch_index("https://gofile.io/d/d1AQzWks?feiliu_i=2"), Some(2));
+        assert_eq!(super::parse_batch_index("https://gofile.io/d/d1AQzWks"), None);
+        assert_eq!(super::parse_batch_index("https://gofile.io/d/x?feiliu_i=0"), Some(0));
     }
 }

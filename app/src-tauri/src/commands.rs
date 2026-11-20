@@ -56,6 +56,20 @@ pub async fn add_lanzou_folder(
         .await
 }
 
+/// GoFile 分享一键批量：WebView 列清单后逐文件建任务，上限 batch_limit 个
+#[tauri::command]
+pub async fn add_gofile_batch(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_gofile_batch(url, dir, connections)
+        .await
+}
+
 /// Bandcamp 专辑一键批量：逐首解析流直链建任务，上限 30 首
 #[tauri::command]
 pub async fn add_bandcamp_album(
