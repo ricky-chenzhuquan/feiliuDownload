@@ -74,7 +74,43 @@ fn pick_aweme_play(v: &Value) -> Option<String> {
     None
 }
 
+/// 短链域名（App 分享默认形态）：vt.tiktok.com / vm.tiktok.com
+fn is_short_link(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("vt.tiktok.com") || lower.contains("vm.tiktok.com")
+}
+
+/// 短链跟随一次跳转（301/302 → /@user/video/{id}；过期短链落主页 → None）
+async fn follow_short_link(url: &str) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .user_agent(UA)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .ok()?;
+    let resp = client.get(url).send().await.ok()?;
+    let loc = resp
+        .headers()
+        .get(reqwest::header::LOCATION)?
+        .to_str()
+        .ok()?
+        .to_string();
+    let target = if loc.starts_with("http") {
+        loc
+    } else {
+        format!("https://www.tiktok.com{loc}")
+    };
+    if target.to_lowercase().contains("/video/") {
+        Some(target)
+    } else {
+        None
+    }
+}
+
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
+    if is_short_link(url) {
+        let target = follow_short_link(url).await?;
+        return Box::pin(resolve(&target)).await;
+    }
     let (author, id) = parse_video_url(url)?;
     let http = client()?;
     let resp = http
@@ -152,6 +188,28 @@ mod tests {
             r.status()
         );
         println!("tiktok e2e OK: {} → HTTP {} {}", info.filename, r.status(), ct);
+    }
+
+    /// 真实短链（App 分享形态）：跟随跳转 → 完整解析 + 下载可达
+    #[tokio::test]
+    async fn test_tiktok_real_shortlink() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve_retry("https://vt.tiktok.com/ZSpSrc45f/")
+            .await
+            .expect("tiktok 短链解析失败");
+        assert!(
+            info.direct_url.contains("www.tiktok.com/aweme/v1/play/"),
+            "短链解析后直链仍应为 aweme 跳转票: {}",
+            info.direct_url
+        );
+        assert!(
+            info.filename.contains("silhouettesbelow"),
+            "文件名应含作者: {}",
+            info.filename
+        );
+        println!("tiktok shortlink OK: {}", info.filename);
     }
 
     /// URL 形态：作者段解析与非法形态拒绝

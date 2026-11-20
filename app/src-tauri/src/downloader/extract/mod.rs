@@ -103,6 +103,15 @@ mod canonical_tests {
         println!("canonical xhslink OK: {key}");
     }
 
+    /// TikTok：短链与长链同 id 同键（跨形态查重）
+    #[tokio::test]
+    async fn test_canonical_key_tiktok() {
+        let k1 = canonical_key("https://www.tiktok.com/@silhouettesbelow/video/7705115037366619423").await;
+        assert_eq!(k1, Some("tiktok:7705115037366619423".into()));
+        let k2 = canonical_key("https://vt.tiktok.com/ZSpSrc45f/").await;
+        assert_eq!(k2, k1, "短链跟随跳转后应与长链同键");
+    }
+
     /// GoFile：同分享不同批量序号是不同任务（批量建任务防撞查重）
     #[tokio::test]
     async fn test_canonical_key_gofile() {
@@ -248,6 +257,36 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             })
             .unwrap_or(1);
         return Some(format!("bili:{bvid}:p{page}"));
+    }
+    // TikTok（视频 id 键；vt/vm 短链跟随跳转后递归）
+    if lower.contains("vt.tiktok.com") || lower.contains("vm.tiktok.com") {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(helpers::MOBILE_UA)
+            .build()
+            .ok()?;
+        let resp = client.get(url).send().await.ok()?;
+        let loc = resp
+            .headers()
+            .get(reqwest::header::LOCATION)?
+            .to_str()
+            .ok()?
+            .to_string();
+        if loc.starts_with("http") && loc.to_lowercase().contains("/video/") {
+            return Box::pin(canonical_key(&loc)).await;
+        }
+        return None;
+    }
+    if lower.contains("tiktok.com") && lower.contains("/video/") {
+        let idx = lower.find("/video/")? + "/video/".len();
+        let id: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if id.len() >= 10 {
+            return Some(format!("tiktok:{id}"));
+        }
+        return None;
     }
     // GoFile 分享（短码 + 批量序号：同分享不同序号是不同任务）
     if lower.contains("gofile.io") && lower.contains("/d/") {
