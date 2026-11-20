@@ -156,23 +156,13 @@ pub fn run() {
                     let gof_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(9)).await;
-                        eprintln!("[feiliu-selftest] 开始 GoFile JSON 通道自检（d1AQzWks）");
-                        let plan = downloader::extract::WebviewExtractPlan {
-                            url: "https://gofile.io/d/d1AQzWks".into(),
-                            js: r##"(()=>{ if(!window.__fl_go){ window.__fl_go=1; (async()=>{ try{
-  let token=''; for(let i=0;i<16;i++){ token=(document.cookie.match(/accountToken=([^;]+)/)||[])[1]||''; if(token) break; await new Promise(r=>setTimeout(r,500)); }
-  const m=location.pathname.match(/\/d\/([A-Za-z0-9]+)/); if(!m||!token){ window.__fl_go_r=''; return; }
-  const wt=await window.generateWT(token);
-  const r=await fetch('https://api.gofile.io/contents/'+m[1]+'?page=1&pageSize=100&sortField=name&sortDirection=1',{headers:{'Authorization':'Bearer '+token,'X-Website-Token':wt,'X-BL':navigator.language||''}});
-  const j=await r.json();
-  if(j.status!=='ok'){ window.__fl_go_r=''; return; }
-  const files=[]; (function walk(n){ const kids=n.children?Object.values(n.children):[]; for(const c of kids){ if(c.type==='file') files.push({link:c.link,name:c.name}); else walk(c);} })(j.data);
-  window.__fl_go_r=files.length?JSON.stringify({url:files[0].link,cookie:document.cookie,name:files[0].name}):'';
-}catch(e){ window.__fl_go_r=''; } })(); }
-return window.__fl_go_r||'';
-})()"##.into(),
-                            timeout_ms: 30_000,
-                        };
+                        eprintln!("[feiliu-selftest] 开始 GoFile JSON 通道自检（d1AQzWks，生产 resolve 链路）");
+                        // 走 gofile::resolve 生产提取器（列表形态 plan.js），非内联旧版
+                        let plan = downloader::extract::gofile::resolve("https://gofile.io/d/d1AQzWks")
+                            .await
+                            .and_then(|e| e.webview_plan)
+                            .ok_or("gofile resolve 未产出代取计划")
+                            .expect("gofile resolve 失败");
                         let started = std::time::Instant::now();
                         let wv = match downloader::webview_extract::extract(gof_handle, &plan).await {
                             Ok(w) => w,
@@ -182,11 +172,12 @@ return window.__fl_go_r||'';
                             }
                         };
                         eprintln!(
-                            "[feiliu-selftest] gofile-extract: 成功 {:.1}s url={} cookie_len={} name={}",
+                            "[feiliu-selftest] gofile-extract: 成功 {:.1}s url={} cookie_len={} name={} 清单文件数={}",
                             started.elapsed().as_secs_f64(),
                             &wv.url[..60.min(wv.url.len())],
                             wv.cookie.as_deref().map(|c| c.len()).unwrap_or(0),
                             wv.name.as_deref().unwrap_or("-"),
+                            wv.files.len(),
                         );
                         // 引擎式下载裁决：带/不带 cookie 各取 1KB
                         let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";

@@ -30,7 +30,7 @@ pub mod bilibili;
 mod douyin;
 mod generic;
 mod github;
-mod gofile;
+pub mod gofile;
 pub mod helpers;
 mod kuaishou;
 pub mod lanzou;
