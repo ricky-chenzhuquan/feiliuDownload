@@ -28,6 +28,9 @@
 | Dev | GitHub Releases | ✅ page → assets | ✅ single-asset direct (anonymous API) |
 | Archive | Internet Archive item pages | ✅ direct link (public, no login) | ✅ multi-thread |
 | Music | Bandcamp album / track pages | ✅ direct link (mp3 stream) | ✅ multi-thread |
+| Image | Pixiv artwork pages | ✅ direct link (original image / ugoira frame ZIP) | ✅ multi-thread |
+| Cloud | GoFile gofile.io/d/ shares | ✅ direct link (WebView-resolved, session cookie) | ✅ multi-thread + folder one-click batch |
+| Video | TikTok video pages (incl. vt/vm share short links) | ✅ direct link (watermark-free) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
@@ -37,14 +40,14 @@
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.
 - 🔀 **Multi-source (mirror) downloading** — paste extra mirror URLs for the same file; chunks rotate across CDNs so throughput stacks.
-- 📺 **Site extraction (18+ platforms)** — Bilibili (video / collection / series / bangumi with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp (albums one-click batch), Pixiv (single image / multi-page p0 / ugoira frame ZIP), GoFile (gofile.io/d/ shares — session cookie handled automatically), TikTok (video pages, watermark-free); cloud-drive/CSDN shares are listed with honest guidance.
+- 📺 **Site extraction (18+ platforms)** — Bilibili (video / collection / series / bangumi with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp (albums one-click batch), Pixiv (single image / multi-page p0 / ugoira frame ZIP), GoFile (gofile.io/d/ shares — direct download + folder one-click batch, session cookie handled automatically), TikTok (video pages, watermark-free); cloud-drive/CSDN shares are listed with honest guidance.
 - 🧲 **BitTorrent** — magnet links & .torrent files powered by librqbit (DHT + trackers).
 - ⏸️ **Pause / resume / restart-safe** — chunk progress lives on disk in real time; interrupted downloads resume from the exact byte. Optional **auto-resume on launch**.
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.
 - 🗂️ **Multi-task manager** — parallel tasks with live speed, ETA and connection count. Pause-all / resume-all in one click.
 - 📋 **Quick add** — clipboard watch and drag-and-drop links onto the window pre-fill the new-task dialog.
 - 🖱️ **Manager extras** — right-click menu (copy link / filename / reveal folder), expandable task details (incl. the original share link for resolved tasks), filename search filter, clear-completed, **lifetime totals** that survive clearing, and **adjustable batch limit** (default 30).
-- 🧬 **Cross-form duplicate detection** — the same video pasted as a short link (b23.tv / v.douyin / xhslink), full URL, or share text is recognized as one item; paid/unavailable content gets an honest notice instead of a fake download.
+- 🧬 **Cross-form duplicate detection** — the same video pasted as a short link (b23.tv / v.douyin / xhslink / vt.tiktok), full URL, or share text is recognized as one item; paid/unavailable content gets an honest notice instead of a fake download.
 - 🔄 **In-app auto-update** — update manifests are published via GitHub Releases; update packages are minisign-verified before install.
 - 🛡️ **Clean & private** — no ads, no bundleware, no telemetry. A local Rust engine.
 - 🪶 **Feather-light** — built on Tauri 2: a ~4 MB installer.

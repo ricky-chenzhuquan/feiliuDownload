@@ -28,6 +28,9 @@
 | Dev | GitHub Releases | ✅ Seite→Assets | ✅ Einzel-Asset direkt (anonyme API) |
 | Archiv | Internet Archive Item-Seiten | ✅ direkter Link (öffentlich, kein Login) | ✅ Multi-Thread |
 | Musik | Bandcamp Album-/Track-Seiten | ✅ direkter Link (mp3-Stream) | ✅ Multi-Thread |
+| Bild | Pixiv Werkseiten | ✅ direkter Link (Original / Ugoira-Frame-ZIP) | ✅ Multi-Thread |
+| Cloud | GoFile gofile.io/d/-Shares | ✅ direkter Link (WebView, Sitzungs-Cookie) | ✅ Multi-Thread + Ordner-Stapel |
+| Video | TikTok Videoseiten (inkl. vt/vm-Kurzlinks) | ✅ direkter Link (ohne WM) | ✅ Multi-Thread |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |
@@ -37,14 +40,14 @@
 
 - 🚀 **Multi-Connection-Beschleunigung** — Dateien werden in 8-MiB-Chunks aufgeteilt und mit bis zu **64 parallelen Verbindungen** geladen. Dramatisch schneller bei gedrosselten Servern.
 - 🔀 **Multi-Source-Aggregation** — zusätzliche Mirror-URLs für dieselbe Datei einfügen; Chunks rotieren über CDNs und die Durchsätze addieren sich.
-- 📺 **Site-Extraktion (18+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM); Cloud-Drive-/CSDN-Shares werden ehrlich aufgelistet.
+- 📺 **Site-Extraktion (18+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares — direkt + Ordner-Stapel, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM); Cloud-Drive-/CSDN-Shares werden ehrlich aufgelistet.
 - 🧲 **BitTorrent** — Magnet-Links & .torrent-Dateien dank librqbit (DHT + Tracker).
 - ⏸️ **Pause / Fortsetzen / Neustart-sicher** — der Chunk-Fortschritt liegt in Echtzeit auf der Festplatte; unterbrochene Downloads setzen exakt am letzten Byte fort. Optionales **Auto-Resume beim Start**.
 - 🔍 **Intelligente Erkennung** — Dateiname, Größe und Range-Unterstützung werden automatisch erkannt; Server ohne Byte-Range-Support weichen elegant auf eine einzelne Verbindung aus.
 - 🗂️ **Task-Verwaltung** — parallele Aufgaben mit Live-Geschwindigkeit, Restzeit und Verbindungsanzahl. Alles pausieren / alles fortsetzen mit einem Klick.
 - 📋 **Schnelles Hinzufügen** — Clipboard-Überwachung und Drag & Drop von Links ins Fenster füllen den Dialog automatisch vor.
 - 🖱️ **Verwaltung Plus** — Kontextmenü (Kopieren/Ordner anzeigen), aufklappbare Task-Details (inkl. Original-Share-Link bei analysierten Aufgaben), Dateinamen-Filter, „Fertige löschen", **lebenslange Statistik** (übersteht Löschen) und **anpassbares Stapel-Limit** (Standard 30).
-- 🧬 **Cross-Form-Duplikaterkennung** — dasselbe Video als Kurzlink (b23.tv / v.douyin / xhslink), volle URL oder Share-Text wird als ein Eintrag erkannt; Bezahl-/nicht verfügbare Inhalte erhalten ehrliche Hinweise.
+- 🧬 **Cross-Form-Duplikaterkennung** — dasselbe Video als Kurzlink (b23.tv / v.douyin / xhslink / vt.tiktok), volle URL oder Share-Text wird als ein Eintrag erkannt; Bezahl-/nicht verfügbare Inhalte erhalten ehrliche Hinweise.
 - 🔄 **In-App-Auto-Update** — Update-Manifeste werden über GitHub Releases veröffentlicht; Update-Pakete werden vor der Installation per Minisign verifiziert.
 - 🛡️ **Sauber & privat** — keine Werbung, kein Bundleware, keine Telemetrie. Eine lokale Rust-Engine.
 - 🪶 **Federleicht** — auf Tauri 2 basis: ein ~4-MB-Installer.
