@@ -412,15 +412,17 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         }
         return None;
     }
-    // 快手（short-video/{hex32id}）
-    if lower.contains("kuaishou.com") {
-        if let Some(i) = lower.find("/short-video/") {
-            let id: String = url[i + "/short-video/".len()..]
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric())
-                .collect();
-            if !id.is_empty() {
-                return Some(format!("ks:{id}"));
+    // 快手（short-video/{hex32id} 与官方分享落地页 fw/photo/{photoId}）
+    if lower.contains("kuaishou.com") || lower.contains("chenzhongtech.com") {
+        for marker in ["/short-video/", "/fw/photo/"] {
+            if let Some(i) = lower.find(marker) {
+                let id: String = url[i + marker.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric())
+                    .collect();
+                if !id.is_empty() {
+                    return Some(format!("ks:{id}"));
+                }
             }
         }
         return None;
