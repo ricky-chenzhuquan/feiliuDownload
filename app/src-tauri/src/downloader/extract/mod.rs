@@ -36,6 +36,7 @@ mod kuaishou;
 pub mod lanzou;
 pub mod netease;
 mod pixiv;
+mod tiktok;
 mod twitter;
 mod weibo;
 mod xhs;
@@ -519,6 +520,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Bandcamp 专辑/曲目页（内嵌 tralbum JSON → mp3-128 流直链）
     if lower.contains("bandcamp.com") && (lower.contains("/album/") || lower.contains("/track/")) {
         return bandcamp::resolve(url).await;
+    }
+    // TikTok 视频页（匿名 itemStruct → aweme 同源跳转票，引擎直取）
+    if lower.contains("tiktok.com") {
+        return tiktok::resolve(url).await;
     }
     // Pixiv 作品页（匿名 ajax API → pximg 原始图直链，CDN 需 Referer）
     if lower.contains("pixiv.net") {
