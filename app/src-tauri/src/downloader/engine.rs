@@ -1770,7 +1770,11 @@ async fn download_single(
         match req.send().await {
             Ok(r) if r.status().is_success() => {
                 let _ = std::fs::remove_file(part);
-                if stream_response(r, part, 0, 0, shared, None).await? {
+                // expected 取任务总大小：stream_response 的完成判定要求
+                // expected > 0，传 0 会让无 Range 服务器的单连接下载永远
+                // 「未完成」退避重试到 Fatal（r3 轮 9 回归测试实锤，潜伏 bug）
+                let expected = shared.meta.read().unwrap().total_size;
+                if stream_response(r, part, 0, expected, shared, None).await? {
                     return Ok(());
                 }
                 // 流提前结束：重试
@@ -1876,7 +1880,9 @@ async fn stream_response(
         }
     }
     let _ = file.flush().await;
-    if expected > 0 && done >= expected {
+    // expected == 0（未知大小的单连接流）：自然 EOF 即完整；
+    // 分片路径恒有 expected > 0，语义不受影响
+    if expected == 0 || done >= expected {
         Ok(true)
     } else {
         Ok(false)
@@ -2213,6 +2219,98 @@ mod tests {
         merge_parts(&dir, out.to_str().unwrap(), 2 * mb, false).unwrap();
         assert_eq!(part_size(&out), 2 * mb);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 会话 cookie 透传回归（r3 轮 6 基座 + GoFile 下载依赖的路径）：
+    /// 本地 HTTP 服务器捕获请求头——① meta.cookies 时 Cookie/Referer 进请求，
+    /// ② cookies=None 时不得发 Cookie 头（老站点零污染）。
+    /// download_single 与 Range 分片路径的头构造同源（r3 轮 6 同步改造）。
+    #[tokio::test]
+    async fn test_cookie_header_passthrough() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let captured: Arc<std::sync::Mutex<Vec<Vec<String>>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let cap_clone = captured.clone();
+        let server = tokio::task::spawn_blocking(move || {
+            for _ in 0..2 {
+                let Ok((mut s, _)) = listener.accept() else { break };
+                let mut buf = [0u8; 8192];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let headers: Vec<String> = req.lines().take(12).map(str::to_string).collect();
+                cap_clone.lock().unwrap().push(headers);
+                let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
+            }
+        });
+
+        let dir = std::env::temp_dir().join(format!("feiliu_ck_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mk = |cookies: Option<String>, part_name: &str| {
+            Arc::new(TaskShared {
+                id: "ck-test".into(),
+                meta: RwLock::new(TaskMeta {
+                    url: format!("http://{addr}/f.txt"),
+                    kind: TaskKind::Http,
+                    info_hash: None,
+                    mirrors: vec![],
+                    referer: Some("https://gofile.io/".into()),
+                    cookies,
+                    source_url: None,
+                    canonical: None,
+                    filename: "f.txt".into(),
+                    save_path: dir.join("out.txt").to_string_lossy().into_owned(),
+                    total_size: 5,
+                    accept_ranges: false,
+                    etag: None,
+                    last_modified: None,
+                    connections: 1,
+                    created_at: now_ms(),
+                }),
+                status: RwLock::new(TaskStatus::Downloading),
+                error: RwLock::new(None),
+                downloaded: AtomicU64::new(0),
+                speed_bps: RwLock::new(0.0),
+                eta_secs: RwLock::new(None),
+                active_conns: AtomicU32::new(0),
+                pause_flag: AtomicBool::new(false),
+                cancel_flag: AtomicBool::new(false),
+                error_flag: AtomicBool::new(false),
+                removed: AtomicBool::new(false),
+                re_rescued: AtomicBool::new(false),
+                interrupt: tokio::sync::Notify::new(),
+            })
+        };
+
+        let client = reqwest::Client::new();
+        let url = format!("http://{addr}/f.txt");
+        let p1 = dir.join("part_000000");
+        download_single(&client, &url, &p1, &mk(Some("accountToken=abc123; other=1".into()), "part_000000"))
+            .await
+            .unwrap();
+        let p2 = dir.join("part_000001");
+        download_single(&client, &url, &p2, &mk(None, "part_000001")).await.unwrap();
+        server.await.unwrap();
+
+        let caps = captured.lock().unwrap();
+        assert_eq!(caps.len(), 2, "应捕获 2 次请求: {}", caps.len());
+        let has = |hs: &[String], name: &str| {
+            hs.iter().any(|l| l.to_lowercase().starts_with(&format!("{name}:")))
+        };
+        assert!(has(&caps[0], "cookie"), "带 cookie 场景应发 Cookie 头: {:?}", caps[0]);
+        assert!(
+            caps[0].iter().any(|l| l.contains("accountToken=abc123")),
+            "Cookie 值应完整透传: {:?}",
+            caps[0]
+        );
+        assert!(has(&caps[0], "referer"), "Referer 应透传");
+        assert!(!has(&caps[1], "cookie"), "无 cookie 场景不得发 Cookie 头: {:?}", caps[1]);
+        assert_eq!(part_size(&p1), 5, "场景 1 下载内容应完整");
+        assert_eq!(part_size(&p2), 5, "场景 2 下载内容应完整");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
