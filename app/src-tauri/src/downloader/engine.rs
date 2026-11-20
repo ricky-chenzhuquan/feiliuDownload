@@ -768,7 +768,14 @@ impl Inner {
         // 还会 404。best-effort：探测失败不阻塞建任务（下载仍可行）
         if info.webview_plan.is_some() {
             if let Some(p2) =
-                probe::probe_direct_ref(&client, &dl_url, info.referer.as_deref()).await
+                // WebView JSON 结果带出的会话 cookie 一并探测（GoFile 无 cookie 302 拿不到大小）
+                probe::probe_direct_ref(
+                    &client,
+                    &dl_url,
+                    info.referer.as_deref(),
+                    wv_cookie.as_deref(),
+                )
+                .await
             {
                 info.total_size = p2.total_size;
                 info.accept_ranges = p2.accept_ranges;
@@ -1279,8 +1286,13 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
     // 校验/恢复：重探测确认远端文件未变化
     if meta.accept_ranges {
         let client = probe::client();
-        if let Some(info) =
-            probe::range_probe_detail(&client, &meta.url, meta.referer.as_deref()).await
+        if let Some(info) = probe::range_probe_detail(
+            &client,
+            &meta.url,
+            meta.referer.as_deref(),
+            meta.cookies.as_deref(),
+        )
+        .await
         {
             let changed = info.total_size.is_some_and(|t| t != meta.total_size)
                 || both_present_diff(&info.etag, &meta.etag);
@@ -1546,12 +1558,18 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
         if info.referer.is_some() {
             m.referer = info.referer.clone();
         }
-        m.cookies = new_cookie;
+        m.cookies = new_cookie.clone();
         (m.url.clone(), referer_new)
     };
     // 新直链二次探测拿真实大小/断点（best-effort，失败沿用旧值）
     if let Some(p2) =
-        probe::probe_direct_ref(&client, &url_new, referer_new.as_deref()).await
+        probe::probe_direct_ref(
+            &client,
+            &url_new,
+            referer_new.as_deref(),
+            new_cookie.as_deref(),
+        )
+        .await
     {
         let mut m = shared.meta.write().unwrap();
         if let Some(t) = p2.total_size {
@@ -2401,8 +2419,8 @@ mod tests {
         let client = probe::client();
         let p1 = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
         let p2 = "https://mirrors.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
-        let i1 = probe::range_probe_detail(&client, p1, None).await.expect("主站探测失败");
-        let i2 = probe::range_probe_detail(&client, p2, None).await.expect("镜像探测失败");
+        let i1 = probe::range_probe_detail(&client, p1, None, None).await.expect("主站探测失败");
+        let i2 = probe::range_probe_detail(&client, p2, None, None).await.expect("镜像探测失败");
         let t1 = i1.total_size.expect("主站无大小");
         let t2 = i2.total_size.expect("镜像无大小");
         assert_eq!(t1, t2, "两源大小不一致");
@@ -2548,8 +2566,8 @@ mod tests {
             Err(e) => println!("probe Err: {e}"),
         }
         // 探测子步骤独立复现
-        println!("range_probe: {:?}", probe::range_probe_detail(&client, url, None).await.is_some());
-        println!("head_probe: {:?}", probe::head_probe_detail(&client, url, None).await.is_some());
+        println!("range_probe: {:?}", probe::range_probe_detail(&client, url, None, None).await.is_some());
+        println!("head_probe: {:?}", probe::head_probe_detail(&client, url, None, None).await.is_some());
     }
 
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件

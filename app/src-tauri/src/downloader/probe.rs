@@ -99,8 +99,8 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
         let mut info = {
             // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
             let ref_opt = site_referer.as_deref();
-            let r = range_probe_detail(client, target, ref_opt).await;
-            let h = head_probe_detail(client, target, ref_opt).await;
+            let r = range_probe_detail(client, target, ref_opt, None).await;
+            let h = head_probe_detail(client, target, ref_opt, None).await;
             match (r, h) {
                 (Some(i), _) => i,
                 (None, Some(i)) => i,
@@ -159,12 +159,13 @@ pub async fn probe_direct_ref(
     client: &Client,
     url: &str,
     referer: Option<&str>,
+    cookies: Option<&str>,
 ) -> Option<ProbeInfo> {
     for _attempt in 0..2 {
-        if let Some(i) = range_probe_detail(client, url, referer).await {
+        if let Some(i) = range_probe_detail(client, url, referer, cookies).await {
             return Some(i);
         }
-        if let Some(i) = head_probe_detail(client, url, referer).await {
+        if let Some(i) = head_probe_detail(client, url, referer, cookies).await {
             return Some(i);
         }
         tokio::time::sleep(std::time::Duration::from_millis(700)).await;
@@ -178,10 +179,15 @@ pub async fn head_probe_detail(
     client: &Client,
     url: &str,
     referer: Option<&str>,
+    cookies: Option<&str>,
 ) -> Option<ProbeInfo> {
     let mut req = client.head(url);
     if let Some(r) = referer {
         req = req.header(reqwest::header::REFERER, r);
+    }
+    // 会话 cookie 透传（GoFile 直链无 cookie 302，探测拿不到大小）
+    if let Some(c) = cookies {
+        req = req.header(reqwest::header::COOKIE, c);
     }
     let resp = match req.send().await {
         Ok(r) => {
@@ -226,12 +232,17 @@ pub async fn range_probe_detail(
     client: &Client,
     url: &str,
     referer: Option<&str>,
+    cookies: Option<&str>,
 ) -> Option<ProbeInfo> {
     let mut req = client
         .get(url)
         .header(reqwest::header::RANGE, "bytes=0-0");
     if let Some(r) = referer {
         req = req.header(reqwest::header::REFERER, r);
+    }
+    // 会话 cookie 透传（同 head）
+    if let Some(c) = cookies {
+        req = req.header(reqwest::header::COOKIE, c);
     }
     let resp = match req.send().await
     {
@@ -386,6 +397,7 @@ mod tests {
             &c,
             "https://proof.ovh.net/files/10Mb.dat",
             Some("https://www.82dj.com/"),
+            None,
         )
         .await
         .expect("直链二次探测失败");
@@ -414,5 +426,56 @@ mod tests {
             "错误信息应说明 HLS 分片清单: {err}"
         );
         println!("probe HLS 拒绝 OK: {err}");
+    }
+
+    /// 会话 cookie 探测回归（r3 轮 17）：probe_direct_ref 带 cookies 时
+    /// Cookie 头进请求，Range 探测从 Content-Range 拿真实大小（GoFile 链路）
+    #[tokio::test]
+    async fn test_probe_direct_ref_with_cookies() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let captured: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let cap = std::sync::Arc::clone(&captured);
+        let server = tokio::task::spawn_blocking(move || {
+            let Ok((mut s, _)) = listener.accept() else { return };
+            // 循环读到请求头结束（\r\n\r\n）：单次 read 有 TCP 分片竞态，
+            // Cookie 头可能落在第二段导致捕获不完整（r3 轮 17 实测踩坑）
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 2048];
+            loop {
+                let n = s.read(&mut chunk).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let req = String::from_utf8_lossy(&buf).to_string();
+            cap.lock().unwrap().push(req.lines().take(16).collect::<Vec<_>>().join("\n"));
+            // 206 + Content-Range：总大小 123456
+            let _ = s.write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-0/123456\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX",
+            );
+        });
+        let client = client();
+        let url = format!("http://{addr}/f.txt");
+        let info = probe_direct_ref(&client, &url, Some("https://gofile.io/"), Some("accountToken=abc; x=1"))
+            .await
+            .expect("带 cookie 探测应成功");
+        server.await.unwrap();
+        let req = captured.lock().unwrap().join("\n");
+        let req_lower = req.to_lowercase();
+        // 值比较注意：req_lower 已全小写，needle 也要小写（大小写混排的
+        // accountToken 原样匹配会永假——r3 轮 17 实测踩坑）
+        assert!(req_lower.contains("cookie: accounttoken=abc"), "Cookie 头应透传: {req}");
+        assert!(req_lower.contains("referer: https://gofile.io/"), "Referer 应透传");
+        assert_eq!(info.total_size, Some(123456), "应从 Content-Range 解析真实大小");
+        println!("probe cookie OK: size={:?}", info.total_size);
     }
 }
