@@ -34,6 +34,7 @@ pub mod helpers;
 mod kuaishou;
 pub mod lanzou;
 pub mod netease;
+mod pixiv;
 mod twitter;
 mod weibo;
 mod xhs;
@@ -477,6 +478,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Bandcamp 专辑/曲目页（内嵌 tralbum JSON → mp3-128 流直链）
     if lower.contains("bandcamp.com") && (lower.contains("/album/") || lower.contains("/track/")) {
         return bandcamp::resolve(url).await;
+    }
+    // Pixiv 作品页（匿名 ajax API → pximg 原始图直链，CDN 需 Referer）
+    if lower.contains("pixiv.net") {
+        return pixiv::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await
