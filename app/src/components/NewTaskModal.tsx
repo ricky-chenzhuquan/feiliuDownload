@@ -6,6 +6,7 @@ import {
   addBandcampAlbum,
   addBilibiliBangumi,
   addLanzouFolder,
+  addGofileBatch,
   getSettings,
   isMobile,
   pickFolder,
@@ -160,8 +161,10 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
           ? addBilibiliCollection(probe.url, dir.trim() || undefined, connections)
           : kind === "lanzou_folder"
             ? addLanzouFolder(probe.url, dir.trim() || undefined, connections)
-            : kind === "bandcamp_album"
-              ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
+            : kind === "gofile_share"
+              ? addGofileBatch(probe.url, dir.trim() || undefined, connections)
+              : kind === "bandcamp_album"
+                ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
               : kind === "bilibili_bangumi"
                 ? addBilibiliBangumi(probe.url, dir.trim() || undefined, connections)
                 : addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
@@ -315,8 +318,10 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                       ? `⚡ 一键添加合集/系列视频（前 ${batchLimit} 个）`
                       : probe.batch_kind === "lanzou_folder"
                         ? `⚡ 一键添加文件夹文件（前 ${batchLimit} 个）`
-                        : probe.batch_kind === "bandcamp_album"
-                          ? `⚡ 一键添加专辑曲目（前 ${batchLimit} 首）`
+                        : probe.batch_kind === "gofile_share"
+                          ? `⚡ 一键添加分享内文件（前 ${batchLimit} 个）`
+                          : probe.batch_kind === "bandcamp_album"
+                            ? `⚡ 一键添加专辑曲目（前 ${batchLimit} 首）`
                           : probe.batch_kind === "bilibili_bangumi"
                             ? `⚡ 一键添加番剧集（前 ${batchLimit} 集）`
                             : "⚡ 一键添加免费歌曲（上限 30 首）"}

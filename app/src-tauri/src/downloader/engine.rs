@@ -440,7 +440,11 @@ impl Inner {
         let notice = info.notice.clone();
         // 网易云歌单 / B 站合集支持一键批量（batch_kind 告诉前端调哪个命令）
         let lower = url.to_lowercase();
-        let batch_kind = if notice.is_some()
+        // GoFile：单文件可普通添加、多文件可批量——批量按钮无条件给出
+        // （清单数只有代取时知道；单文件分享点批量=添加 1 个任务，无害）
+        let batch_kind = if lower.contains("gofile.io") && lower.contains("/d/") {
+            Some("gofile_share".to_string())
+        } else if notice.is_some()
             && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"))
         {
             Some("netease_playlist".to_string())
@@ -2158,6 +2162,28 @@ fn default_download_dir(app: &AppHandle) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GoFile probe_url 批量判定：d/ 分享恒有 gofile_share 批量键（前端按钮依据）
+    #[tokio::test]
+    async fn test_gofile_probe_batch_kind() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let mgr = TaskManager::new();
+        let p = mgr
+            .inner
+            .probe_url("https://gofile.io/d/d1AQzWks")
+            .await
+            .expect("gofile probe 失败");
+        assert_eq!(p.batch_kind.as_deref(), Some("gofile_share"));
+        assert!(p.webview_plan.is_some(), "gofile 必须带代取计划");
+        let p2 = mgr
+            .inner
+            .probe_url("https://gofile.io/d/d1AQzWks?feiliu_i=2")
+            .await
+            .expect("带序号 probe 失败");
+        assert_eq!(p2.batch_kind.as_deref(), Some("gofile_share"), "序号形态同判");
+    }
 
     /// 防重复：同 URL 二次添加被拒（通过 add_task 完整流程验证）
     #[tokio::test]
