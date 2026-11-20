@@ -44,14 +44,17 @@ fn parse_share_code(url: &str) -> Option<String> {
     }
     let idx = lower.find("/d/")?;
     let rest = &url[idx + "/d/".len()..];
+    // 短码含连字符形态（UUID 直链分享，如 bae7f048-132f-4243-a904-8e51506c282b
+    // ——2026-11-21 用户浏览实例发现；纯字母数字短码同样覆盖）
     let code: String = rest
         .chars()
-        .take_while(|c| c.is_ascii_alphanumeric())
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
         .collect();
+    let code = code.trim_end_matches('-');
     if code.is_empty() {
         None
     } else {
-        Some(code)
+        Some(code.to_string())
     }
 }
 
@@ -128,6 +131,27 @@ mod tests {
         println!("gofile probe OK: {} → {}", info.filename, plan.url);
     }
 
+    /// 真实 UUID 形态分享码（连字符不能截断）
+    #[tokio::test]
+    async fn test_gofile_real_uuid_share() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve_retry(
+            "https://gofile.io/d/bae7f048-132f-4243-a904-8e51506c282b",
+        )
+        .await
+        .expect("uuid 分享解析失败");
+        let plan = info.webview_plan.expect("uuid 分享应有代取计划");
+        assert!(
+            plan.url.ends_with("/d/bae7f048-132f-4243-a904-8e51506c282b"),
+            "代取 URL 必须保留完整 UUID 短码: {}",
+            plan.url
+        );
+        assert_eq!(info.filename, "gofile_bae7f048-132f-4243-a904-8e51506c282b");
+        println!("gofile uuid OK: {}", info.filename);
+    }
+
     /// URL 形态：带 www / 尾部斜杠 / 附加路径均可提取短码；批量序号解析
     #[test]
     fn test_parse_share_code() {
@@ -141,6 +165,11 @@ mod tests {
         );
         assert_eq!(super::parse_share_code("https://gofile.io/uploadfile"), None);
         assert_eq!(super::parse_share_code("https://example.com/d/abc"), None);
+        assert_eq!(
+            super::parse_share_code("https://gofile.io/d/bae7f048-132f-4243-a904-8e51506c282b"),
+            Some("bae7f048-132f-4243-a904-8e51506c282b".into()),
+            "UUID 形态短码连字符不得截断"
+        );
         assert_eq!(super::parse_batch_index("https://gofile.io/d/d1AQzWks?feiliu_i=2"), Some(2));
         assert_eq!(super::parse_batch_index("https://gofile.io/d/d1AQzWks"), None);
         assert_eq!(super::parse_batch_index("https://gofile.io/d/x?feiliu_i=0"), Some(0));

@@ -293,8 +293,9 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         let idx = lower.find("/d/")? + "/d/".len();
         let code: String = url[idx..]
             .chars()
-            .take_while(|c| c.is_ascii_alphanumeric())
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
             .collect();
+        let code = code.trim_end_matches('-').to_string();
         if !code.is_empty() {
             let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
                 let p = lower.find(m)?;
