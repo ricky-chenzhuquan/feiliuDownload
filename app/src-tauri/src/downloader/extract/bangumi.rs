@@ -83,13 +83,25 @@ async fn fetch_episode(http: &reqwest::Client, ep_id: u64) -> EpFetch {
     if result.get("type").and_then(|t| t.as_str()) != Some("MP4") {
         return EpFetch::NoStream;
     }
-    match result
+    // 直链 CDN 选择（2026-11-20 r3 轮 2 实锤）：官方按请求概率下发 os=mcdn
+    // P2P 边缘节点，backup_url 里有 bilivideo.com 标准主域——优先标准主域
+    let cands = result
         .get("durl")
         .and_then(|d| d.as_array())
         .and_then(|a| a.first())
-        .and_then(|seg| seg.get("url"))
-        .and_then(|u| u.as_str())
-    {
+        .map(|seg| {
+            let mut v: Vec<&str> = seg
+                .get("url")
+                .and_then(|u| u.as_str())
+                .map(|u| vec![u])
+                .unwrap_or_default();
+            if let Some(b) = seg.get("backup_url").and_then(|b| b.as_array()) {
+                v.extend(b.iter().filter_map(|x| x.as_str()));
+            }
+            v
+        })
+        .unwrap_or_default();
+    match super::helpers::prefer_bilivideo(cands.into_iter()) {
         Some(u) => EpFetch::Stream(u.to_string()),
         None => EpFetch::NoStream,
     }

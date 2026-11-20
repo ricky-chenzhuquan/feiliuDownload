@@ -141,6 +141,23 @@ pub fn json_client() -> Option<reqwest::Client> {
         .ok()
 }
 
+/// B 站 playurl 直链 CDN 选择（2026-11-20 r3 轮 2 实锤）：官方按请求概率下发
+/// `os=mcdn` 的 P2P 边缘节点（如 edge.mountaintoys.cn:4483 奇异域名），同一 durl
+/// 的 backup_url 里有标准 bilivideo.com 主域候选——优先标准主域，仅在无候选时
+/// 接受 mcdn（仍是 B 站官方签名直链，匿名可达但域名观感差、稳定性未知）。
+pub fn prefer_bilivideo<'a>(candidates: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    let mut fallback: Option<&'a str> = None;
+    for c in candidates {
+        if c.contains("bilivideo.com") {
+            return Some(c);
+        }
+        if fallback.is_none() {
+            fallback = Some(c);
+        }
+    }
+    fallback
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +216,35 @@ mod tests {
     fn test_clean_filename() {
         assert!(clean_filename("标题:含/非法*字符", "mp4").ends_with(".mp4"));
         assert!(!clean_filename("标题:含/非法*字符", "mp4").contains(':'));
+    }
+
+    #[test]
+    fn test_prefer_bilivideo() {
+        // mcdn 边缘节点在前、bilivideo 在 backup：应选标准主域
+        assert_eq!(
+            prefer_bilivideo(
+                [
+                    "https://x5zu89j.edge.mountaintoys.cn:4483/upgcxcode/a.mp4?e=xx",
+                    "https://upos-sz-mirrorcoso1.bilivideo.com/upgcxcode/a.mp4?e=xx",
+                ]
+                .into_iter()
+            ),
+            Some("https://upos-sz-mirrorcoso1.bilivideo.com/upgcxcode/a.mp4?e=xx")
+        );
+        // bilivideo 在首位：直接选中
+        assert_eq!(
+            prefer_bilivideo(
+                ["https://cn-jsnt-ct-01-02.bilivideo.com/x.mp4", "https://upos.bilivideo.com/x.mp4"].into_iter()
+            ),
+            Some("https://cn-jsnt-ct-01-02.bilivideo.com/x.mp4")
+        );
+        // 全是 mcdn：接受首个（仍为官方签名直链）
+        assert_eq!(
+            prefer_bilivideo(
+                ["https://edge.mountaintoys.cn:4483/x.mp4", "https://edge2.foo.cn/x.mp4"].into_iter()
+            ),
+            Some("https://edge.mountaintoys.cn:4483/x.mp4")
+        );
+        assert_eq!(prefer_bilivideo(std::iter::empty()), None);
     }
 }

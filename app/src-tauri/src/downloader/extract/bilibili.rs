@@ -49,6 +49,12 @@ struct BiliPlayData {
 #[derive(Deserialize)]
 struct BiliDurlSeg {
     url: String,
+    /// 备用 CDN 候选：官方按请求概率下发 os=mcdn P2P 边缘节点时，
+    /// backup_url 里有 bilivideo.com 标准主域（helpers::prefer_bilivideo 选取）。
+    /// 两种 null 形态都必须容忍（实测 2026-11-20）：字段整体为 null（普通视频
+    /// html5 playurl）、数组内含 null 元素（番剧 durl）——否则整包反序列化失败
+    #[serde(default)]
+    backup_url: Option<Vec<Option<String>>>,
 }
 
 /// seasons_archives_list 响应（合集元信息 + 视频列表）
@@ -421,7 +427,13 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         return None;
     }
     let seg = play.data?.durl?.into_iter().next()?;
-    let direct_url = seg.url;
+    // CDN 选择：mcdn 边缘节点概率下发时优先 backup 里的标准主域
+    let backups = seg.backup_url.unwrap_or_default();
+    let direct_url = super::helpers::prefer_bilivideo(
+        std::iter::once(seg.url.as_str()).chain(backups.iter().filter_map(|s| s.as_deref())),
+    )
+    .map(|s| s.to_string())
+    .unwrap_or(seg.url);
 
     Some(super::Extracted {
         direct_url,
