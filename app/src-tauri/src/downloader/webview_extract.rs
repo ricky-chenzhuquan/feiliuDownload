@@ -128,7 +128,10 @@ pub async fn extract(
         if res.is_err() {
             continue; // 页面尚未就绪，下轮重试
         }
-        let Ok(value) = rx.await else {
+        // 回调等待加超时保护：eval 成功但回调永不触发时（部分站点页面 JS
+        // 卡死/被拦，gofile d/ 页实测），rx.await 会无限挂起——deadline
+        // 检查在 await 之后永远跑不到，自检实测整条代取链路卡死
+        let Ok(Ok(value)) = tokio::time::timeout(Duration::from_millis(2500), rx).await else {
             continue;
         };
         // 回调值是多层 stringify 的产物：字符级 unescape（\/ → /、\" → "、

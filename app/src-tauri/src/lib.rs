@@ -147,6 +147,71 @@ pub fn run() {
                     }
                 });
 
+                // 自检 3：GoFile JSON 通道端到端——WebView 代取（JSON{url,cookie,name}）
+                // → 引擎式 reqwest 下载裁决（带/不带会话 cookie 各一次）。
+                // 结论写日志 [feiliu-selftest]，决定 gofile 提取器接入与 blob 兜底取舍。
+                #[cfg(debug_assertions)]
+                {
+                    let gof_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(9)).await;
+                        eprintln!("[feiliu-selftest] 开始 GoFile JSON 通道自检（d1AQzWks）");
+                        let plan = downloader::extract::WebviewExtractPlan {
+                            url: "https://gofile.io/d/d1AQzWks".into(),
+                            js: r##"(()=>{ if(!window.__fl_go){ window.__fl_go=1; (async()=>{ try{
+  let token=''; for(let i=0;i<16;i++){ token=(document.cookie.match(/accountToken=([^;]+)/)||[])[1]||''; if(token) break; await new Promise(r=>setTimeout(r,500)); }
+  const m=location.pathname.match(/\/d\/([A-Za-z0-9]+)/); if(!m||!token){ window.__fl_go_r=''; return; }
+  const wt=await window.generateWT(token);
+  const r=await fetch('https://api.gofile.io/contents/'+m[1]+'?page=1&pageSize=100&sortField=name&sortDirection=1',{headers:{'Authorization':'Bearer '+token,'X-Website-Token':wt,'X-BL':navigator.language||''}});
+  const j=await r.json();
+  if(j.status!=='ok'){ window.__fl_go_r=''; return; }
+  const files=[]; (function walk(n){ const kids=n.children?Object.values(n.children):[]; for(const c of kids){ if(c.type==='file') files.push({link:c.link,name:c.name}); else walk(c);} })(j.data);
+  window.__fl_go_r=files.length?JSON.stringify({url:files[0].link,cookie:document.cookie,name:files[0].name}):'';
+}catch(e){ window.__fl_go_r=''; } })(); }
+return window.__fl_go_r||'';
+})()"##.into(),
+                            timeout_ms: 30_000,
+                        };
+                        let started = std::time::Instant::now();
+                        let wv = match downloader::webview_extract::extract(gof_handle, &plan).await {
+                            Ok(w) => w,
+                            Err(e) => {
+                                eprintln!("[feiliu-selftest] gofile-extract: 失败 {:.1}s err={e}", started.elapsed().as_secs_f64());
+                                return;
+                            }
+                        };
+                        eprintln!(
+                            "[feiliu-selftest] gofile-extract: 成功 {:.1}s url={} cookie_len={} name={}",
+                            started.elapsed().as_secs_f64(),
+                            &wv.url[..60.min(wv.url.len())],
+                            wv.cookie.as_deref().map(|c| c.len()).unwrap_or(0),
+                            wv.name.as_deref().unwrap_or("-"),
+                        );
+                        // 引擎式下载裁决：带/不带 cookie 各取 1KB
+                        let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
+                        let client = match reqwest::Client::builder().user_agent(ua).redirect(reqwest::redirect::Policy::none()).build() {
+                            Ok(c) => c,
+                            Err(e) => { eprintln!("[feiliu-selftest] gofile-client: {e}"); return; }
+                        };
+                        for (label, cookie) in [
+                            ("带cookie", wv.cookie.clone()),
+                            ("裸链", None::<String>),
+                        ] {
+                            let mut req = client.get(&wv.url).header("Range", "bytes=0-1023").header("Referer", "https://gofile.io/");
+                            if let Some(c) = &cookie { req = req.header("Cookie", c); }
+                            match req.send().await {
+                                Ok(r) => eprintln!(
+                                    "[feiliu-selftest] gofile-download({label}): HTTP {} location={:?} type={:?}",
+                                    r.status(),
+                                    r.headers().get("location").and_then(|v| v.to_str().ok()).map(|s| s[..60.min(s.len())].to_string()),
+                                    r.headers().get("content-type").and_then(|v| v.to_str().ok()),
+                                ),
+                                Err(e) => eprintln!("[feiliu-selftest] gofile-download({label}): err={e}"),
+                            }
+                        }
+                    });
+                }
+
             // 桌面端：托盘常驻（左键点击显示窗口，菜单可退出）
             #[cfg(desktop)]
             {
