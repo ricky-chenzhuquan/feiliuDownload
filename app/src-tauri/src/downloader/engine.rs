@@ -92,6 +92,9 @@ pub struct TaskMeta {
     mirrors: Vec<String>,
     /// 站点要求的 Referer（如 B 站 CDN）
     referer: Option<String>,
+    /// WebView 代取带出的会话 cookie（GoFile 等 CDN 校验会话级凭据的站点；
+    /// 不持久化——会话作用域，重启后靠 source_url 重解析重取）
+    cookies: Option<String>,
     /// 解析类任务的原始分享页 URL（直链有时效——82dj 分钟级、B 站数小时——
     /// 下载 404/403 时据此自动重新解析拿新直链）
     source_url: Option<String>,
@@ -245,6 +248,9 @@ impl Inner {
                     info_hash: p.info_hash,
                     mirrors: p.mirrors,
                     referer: p.referer,
+                    // 会话 cookie 不持久化：恢复后直链若因凭据失效被拒，
+                    // source_url 重解析会重新走 WebView 代取取回
+                    cookies: None,
                     source_url: p.source_url,
                     canonical: p.canonical,
                     filename: p.filename,
@@ -664,6 +670,9 @@ impl Inner {
         }
         // WebView 代取直链（蓝奏云等 TLS 指纹墙站点，桌面端）
         let mut dl_url = info.resolved_url.clone().unwrap_or_else(|| url.clone());
+        // JSON 形态代取结果带出的会话 cookie / 真实文件名
+        let mut wv_cookie: Option<String> = None;
+        let mut wv_name: Option<String> = None;
         if dl_url.is_empty() || info.webview_plan.is_some() {
             if let Some(plan) = &info.webview_plan {
                 #[cfg(any(target_os = "ios", target_os = "android"))]
@@ -674,9 +683,10 @@ impl Inner {
                 #[cfg(not(any(target_os = "ios", target_os = "android")))]
                 {
                     if let Some(app) = self.app.get() {
-                        dl_url = crate::downloader::webview_extract::extract(app.clone(), plan)
+                        let wv = crate::downloader::webview_extract::extract(app.clone(), plan)
                             .await
                             .map_err(|e| format!("WebView 代取直链失败: {e}"))?;
+                        dl_url = wv.url;
                         // 防御清洗：直链不可能以反斜杠/引号结尾（多层 stringify
                         // 转义偶发残留，实测 82dj 直链被污染 → CDN 404）
                         dl_url = dl_url
@@ -684,6 +694,11 @@ impl Inner {
                             .trim_matches('"')
                             .trim_end_matches(['\\', '"'])
                             .to_string();
+                        // JSON 形态结果带出的会话 cookie / 真实文件名
+                        wv_cookie = wv.cookie;
+                        if let Some(n) = wv.name.filter(|s| !s.trim().is_empty()) {
+                            wv_name = Some(n);
+                        }
                     } else {
                         return Err("应用尚未初始化完成".into());
                     }
@@ -713,6 +728,8 @@ impl Inner {
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
+                // WebView 代取带出的真实文件名（GoFile 等解析时点未知文件名的站点）
+                .or(wv_name.clone())
                 .or(info.filename.clone()),
         )
         .unwrap_or_else(|| fallback_filename(&url));
@@ -753,6 +770,8 @@ impl Inner {
                 info_hash: None,
                 mirrors: mirrors.clone(),
                 referer: info.referer.clone(),
+                // WebView 代取站点带出的会话 cookie（GoFile 等）
+                cookies: wv_cookie.clone(),
                 // 直链 ≠ 分享页（解析/代取类站点）时记录原始页，供直链过期重解析
                 source_url: if dl_url != url { Some(url.clone()) } else { None },
                 canonical: canonical_key,
@@ -820,6 +839,7 @@ impl Inner {
                 info_hash,
                 mirrors: Vec::new(),
                 referer: None,
+                cookies: None,
                 source_url: None,
                 canonical: None,
                 filename: "磁力任务（等待元数据…）".into(),
@@ -1434,6 +1454,7 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
         _ => return false,
     };
     let mut new_url = info.resolved_url.clone().unwrap_or_default();
+    let mut new_cookie: Option<String> = None;
     if new_url.is_empty() || info.webview_plan.is_some() {
         let (Some(plan), Some(app)) = (&info.webview_plan, inner.app.get()) else {
             return false;
@@ -1441,7 +1462,10 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
         #[cfg(not(any(target_os = "ios", target_os = "android")))]
         {
             match crate::downloader::webview_extract::extract(app.clone(), plan).await {
-                Ok(u) if !u.is_empty() => new_url = u,
+                Ok(wv) if !wv.url.is_empty() => {
+                    new_url = wv.url;
+                    new_cookie = wv.cookie;
+                }
                 _ => return false,
             }
         }
@@ -1454,7 +1478,7 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
     if new_url.is_empty() {
         return false;
     }
-    // 锁内先定好新 url/referer（guard 不可跨 await），探测在锁外做
+    // 锁内先定好新 url/referer/cookie（guard 不可跨 await），探测在锁外做
     let (url_new, referer_new) = {
         let mut m = shared.meta.write().unwrap();
         if new_url == m.url {
@@ -1467,6 +1491,7 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
         if info.referer.is_some() {
             m.referer = info.referer.clone();
         }
+        m.cookies = new_cookie;
         (m.url.clone(), referer_new)
     };
     // 新直链二次探测拿真实大小/断点（best-effort，失败沿用旧值）
@@ -1666,9 +1691,17 @@ async fn download_chunk(
 
         let range = format!("bytes={}-{}", start + written, end);
         let req = client.get(url).header(RANGE, range);
-        let req = match shared.meta.read().unwrap().referer.clone() {
-            Some(r) => req.header(reqwest::header::REFERER, r),
-            None => req,
+        let req = {
+            let m = shared.meta.read().unwrap();
+            let req = match m.referer.clone() {
+                Some(r) => req.header(reqwest::header::REFERER, r),
+                None => req,
+            };
+            // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
+            match m.cookies.clone() {
+                Some(c) => req.header(reqwest::header::COOKIE, c),
+                None => req,
+            }
         };
         let resp = req.send().await;
 
@@ -1720,10 +1753,19 @@ async fn download_single(
         {
             return Err(Flow::Interrupted);
         }
-        let referer = shared.meta.read().unwrap().referer.clone();
+        let (referer, cookies) = {
+            let m = shared.meta.read().unwrap();
+            (m.referer.clone(), m.cookies.clone())
+        };
+        let req = client.get(url);
         let req = match referer {
-            Some(r) => client.get(url).header(reqwest::header::REFERER, r),
-            None => client.get(url),
+            Some(r) => req.header(reqwest::header::REFERER, r),
+            None => req,
+        };
+        // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
+        let req = match cookies {
+            Some(c) => req.header(reqwest::header::COOKIE, c),
+            None => req,
         };
         match req.send().await {
             Ok(r) if r.status().is_success() => {
@@ -2133,6 +2175,7 @@ mod tests {
                 info_hash: None,
                 mirrors: vec![],
                 referer: None,
+                cookies: None,
                 source_url: None,
                 canonical: None,
                 filename: "test.mp4".into(),
@@ -2199,6 +2242,7 @@ mod tests {
                 url: p1.into(),
                 mirrors: vec![p2.into()],
                 referer: None,
+                cookies: None,
                 source_url: None,
                 canonical: None,
                 kind: TaskKind::Http,

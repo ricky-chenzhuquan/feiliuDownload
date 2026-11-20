@@ -91,11 +91,13 @@ pub fn run() {
                     let started = std::time::Instant::now();
                     match downloader::webview_extract::extract(handle, &plan).await {
                         Ok(u) => eprintln!(
-                            "[feiliu-selftest] 成功 {:.1}s 直链长度={} 尾10={:?} 尾部污染={}",
+                            "[feiliu-selftest] 成功 {:.1}s 直链长度={} 尾10={:?} 尾部污染={} cookie={} name={}",
                             started.elapsed().as_secs_f64(),
-                            u.len(),
-                            &u[u.len().saturating_sub(10)..],
-                            u.ends_with('\\') || u.ends_with('"'),
+                            u.url.len(),
+                            &u.url[u.url.len().saturating_sub(10)..],
+                            u.url.ends_with('\\') || u.url.ends_with('"'),
+                            u.cookie.as_deref().map(|c| c.len()).unwrap_or(0),
+                            u.name.as_deref().unwrap_or("-"),
                         ),
                         Err(e) => eprintln!(
                             "[feiliu-selftest] 失败 {:.1}s err={}",

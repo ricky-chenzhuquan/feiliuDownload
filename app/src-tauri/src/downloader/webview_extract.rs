@@ -35,12 +35,47 @@ try{
 }catch(e){};
 })()"##;
 
+/// WebView 代取结果：直链 + 可选会话凭据/真实文件名。
+/// cookie/name 由 plan.js 以 JSON {"url","cookie","name"} 形态返回（GoFile
+/// 等 CDN 校验会话级凭据的站点需要把 cookie 透传给下载通道；82dj/蓝奏云
+/// 老形态裸 URL 不受影响）。
+pub struct WebviewResult {
+    pub url: String,
+    pub cookie: Option<String>,
+    pub name: Option<String>,
+}
+
+/// 解析轮询结果：JSON 对象（{"url","cookie","name"}，cookie/url 非空才收）或裸 URL/magnet
+fn parse_webview_result(raw: &str) -> Option<WebviewResult> {
+    if raw.starts_with('{') {
+        let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+        let url = v.get("url")?.as_str()?.to_string();
+        if !url.starts_with("http") && !url.starts_with("magnet:") {
+            return None;
+        }
+        let non_empty = |x: Option<&str>| x.filter(|s| !s.is_empty()).map(|s| s.to_string());
+        Some(WebviewResult {
+            url,
+            cookie: non_empty(v.get("cookie").and_then(|c| c.as_str())),
+            name: non_empty(v.get("name").and_then(|c| c.as_str())),
+        })
+    } else if raw.starts_with("http") || raw.starts_with("magnet:") {
+        Some(WebviewResult {
+            url: raw.to_string(),
+            cookie: None,
+            name: None,
+        })
+    } else {
+        None
+    }
+}
+
 /// 加载 plan.url，每 500ms 静音媒体并执行 plan.js，
-/// 返回首个非空结果（JSON 字符串由调用方 js 负责序列化）。
+/// 返回首个非空结果（裸 URL/magnet 或 JSON {"url","cookie","name"}）。
 pub async fn extract(
     app: tauri::AppHandle,
     plan: &WebviewExtractPlan,
-) -> Result<String, String> {
+) -> Result<WebviewResult, String> {
     let label = format!("webview-extract-{}", uuid::Uuid::new_v4());
     eprintln!("[feiliu-webview] 创建代取窗口 url={}", plan.url);
     let window = WebviewWindowBuilder::new(
@@ -61,7 +96,6 @@ pub async fn extract(
     // 窗口建好后立即静音（页面 load 前的 eval 可能无效，轮询里会重复执行）
     let _ = window.eval(MUTE_JS);
 
-    let result: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let deadline = std::time::Instant::now() + Duration::from_millis(plan.timeout_ms);
     let mut attempts = 0u32;
 
@@ -132,19 +166,53 @@ pub async fn extract(
             attempts,
             &cleaned[..80.min(cleaned.len())]
         );
-        if cleaned.starts_with("http") || cleaned.starts_with("magnet:") {
+        if let Some(wv) = parse_webview_result(&cleaned) {
             let _ = window.close();
-            let mut slot = result.lock().unwrap();
-            *slot = Some(cleaned.clone());
-            return Ok(cleaned);
+            return Ok(wv);
         }
         // 页面还在生成直链（fn 页 ajax 未完成 / audio src 未设置），继续轮询
-        let _ = result;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::parse_webview_result;
+
+    /// JSON 形态：url + cookie + name 全收
+    #[test]
+    fn test_parse_json_result() {
+        let r = parse_webview_result(
+            r#"{"url":"https://s.gofile.io/download/web/x/feiliu_fixture.txt","cookie":"accountToken=abc; other=1","name":"feiliu_fixture.txt"}"#,
+        )
+        .expect("JSON 应解析成功");
+        assert_eq!(r.url, "https://s.gofile.io/download/web/x/feiliu_fixture.txt");
+        assert_eq!(r.cookie.as_deref(), Some("accountToken=abc; other=1"));
+        assert_eq!(r.name.as_deref(), Some("feiliu_fixture.txt"));
+    }
+
+    /// JSON 形态：空 cookie/name 过滤为 None；url 非法时整体拒绝
+    #[test]
+    fn test_parse_json_edge_cases() {
+        let r = parse_webview_result(r#"{"url":"https://a.b/c.mp4","cookie":"","name":""}"#).expect("空串应过滤");
+        assert_eq!(r.cookie, None);
+        assert_eq!(r.name, None);
+        assert!(parse_webview_result(r#"{"url":"javascript:x"}"#).is_none(), "非 http url 拒绝");
+        assert!(parse_webview_result(r#"{"cookie":"x"}"#).is_none(), "缺 url 拒绝");
+    }
+
+    /// 裸 URL/magnet 老形态（蓝奏云/82dj）不受影响
+    #[test]
+    fn test_parse_plain_url_compat() {
+        let r = parse_webview_result("https://example.com/f.mp4").expect("裸 URL 应通过");
+        assert_eq!(r.url, "https://example.com/f.mp4");
+        assert_eq!(r.cookie, None);
+        assert_eq!(r.name, None);
+        let r = parse_webview_result("magnet:?xt=urn:btih:abc").expect("magnet 应通过");
+        assert!(r.url.starts_with("magnet:"));
+        assert!(parse_webview_result("").is_none());
+        assert!(parse_webview_result("loading...").is_none());
+    }
+
     /// 多层 stringify 污染回归：`\\` + `"` 序列错序处理后尾部残留 `\`
     /// （82dj 直链实测被污染成 xxx.mp4\ → CDN 404）
     #[test]
