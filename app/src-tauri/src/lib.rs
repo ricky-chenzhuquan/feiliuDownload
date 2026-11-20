@@ -204,6 +204,52 @@ pub fn run() {
                     });
                 }
 
+                // 自检 4：微博 WebView 代取真机全链（游客墙→statuses/show→CDN 裁决）
+                #[cfg(debug_assertions)]
+                {
+                    let wb_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(11)).await;
+                        eprintln!("[feiliu-selftest] 开始微博 WebView 代取自检（Rse19cSin，生产 resolve 链路）");
+                        let plan = downloader::extract::weibo::resolve("https://m.weibo.cn/status/Rse19cSin")
+                            .await
+                            .and_then(|e| e.webview_plan)
+                            .ok_or("weibo resolve 未产出代取计划")
+                            .expect("weibo resolve 失败");
+                        let started = std::time::Instant::now();
+                        let wv = match downloader::webview_extract::extract(wb_handle, &plan).await {
+                            Ok(w) => w,
+                            Err(e) => {
+                                eprintln!("[feiliu-selftest] weibo-extract: 失败 {:.1}s err={e}", started.elapsed().as_secs_f64());
+                                return;
+                            }
+                        };
+                        eprintln!(
+                            "[feiliu-selftest] weibo-extract: 成功 {:.1}s url={} name={}",
+                            started.elapsed().as_secs_f64(),
+                            &wv.url[..60.min(wv.url.len())],
+                            wv.name.as_deref().unwrap_or("-"),
+                        );
+                        // 引擎式下载裁决：Referer + Range 1KB
+                        let client = match reqwest::Client::builder().user_agent("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1").redirect(reqwest::redirect::Policy::limited(5)).build() {
+                            Ok(c) => c,
+                            Err(e) => { eprintln!("[feiliu-selftest] weibo-client: {e}"); return; }
+                        };
+                        match client.get(&wv.url)
+                            .header("Referer", "https://m.weibo.cn/")
+                            .header("Range", "bytes=0-1023")
+                            .send().await
+                        {
+                            Ok(r) => eprintln!(
+                                "[feiliu-selftest] weibo-download: HTTP {} type={:?}",
+                                r.status(),
+                                r.headers().get("content-type").and_then(|v| v.to_str().ok()),
+                            ),
+                            Err(e) => eprintln!("[feiliu-selftest] weibo-download: err={e}"),
+                        }
+                    });
+                }
+
             // 桌面端：托盘常驻（左键点击显示窗口，菜单可退出）
             #[cfg(desktop)]
             {

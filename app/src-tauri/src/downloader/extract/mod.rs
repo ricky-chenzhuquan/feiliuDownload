@@ -38,7 +38,7 @@ pub mod netease;
 mod pixiv;
 mod tiktok;
 mod twitter;
-mod weibo;
+pub mod weibo;
 mod xhs;
 
 /// 测试专用：解析带一次重试（真实网络套件中相邻测试触发同站风控的偶发失败）
