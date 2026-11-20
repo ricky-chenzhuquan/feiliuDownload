@@ -30,6 +30,7 @@ pub mod bilibili;
 mod douyin;
 mod generic;
 mod github;
+mod gofile;
 pub mod helpers;
 mod kuaishou;
 pub mod lanzou;
@@ -482,6 +483,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Pixiv 作品页（匿名 ajax API → pximg 原始图直链，CDN 需 Referer）
     if lower.contains("pixiv.net") {
         return pixiv::resolve(url).await;
+    }
+    // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）
+    if lower.contains("gofile.io") {
+        return gofile::resolve(url).await;
     }
     // 通用兜底：og:video / <video src>（任意含视频的网页）
     generic::resolve(url).await
