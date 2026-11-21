@@ -44,7 +44,7 @@
 
 - 🚀 **マルチ接続アクセラレーション** — ファイルを 8MiB のチャンクに分割し、最大 **64 接続で並列ダウンロード**。速度制限のあるサーバーで劇的に高速化。
 - 🔀 **マルチソース集約** — 同一ファイルのミラー URL を追加し、チャンクが複数 CDN を巡回して速度を積み上げます。
-- 📺 **サイト解析（18+ プラットフォーム）** — ビリビリ（動画 / コレクション / シリーズ / アニメ一括）、Douyin（WMなし）、快手、小紅書、Weibo、Twitter/X、網易雲音楽（無料曲直リンク + プレイリスト一括）、82DJ、蓝奏云（フォルダ一括）、GitHub Releases、Internet Archive（パブリックドメイン音動画）、Bandcamp（アルバム一括）、Pixiv（単発 / 漫画p0 / うごイラフレームZIP）、GoFile（gofile.io/d/ 共有直 DL + フォルダ一括、セッション cookie 自動）、TikTok（動画ページ直 DL、WMなし）、UCクラウド（drive.uc.cn / fast.uc.cn 共有——匿名 API 全链 + セッション cookie）；クラウド/CSDN 共有は正直な案内で一覧表示。
+- 📺 **サイト解析（21+ プラットフォーム）** — ビリビリ（動画 / コレクション / シリーズ / アニメ一括）、Douyin（WMなし）、快手、小紅書、Weibo、Twitter/X、網易雲音楽（無料曲直リンク + プレイリスト一括）、82DJ、蓝奏云（フォルダ一括）、GitHub Releases、Internet Archive（パブリックドメイン音動画）、Bandcamp（アルバム一括）、Pixiv（単発 / 漫画p0 / うごイラフレームZIP）、GoFile（gofile.io/d/ 共有直 DL + フォルダ一括、セッション cookie 自動）、TikTok（動画ページ直 DL、WMなし）、UCクラウド（drive.uc.cn / fast.uc.cn 共有——匿名 API 全链 + セッション cookie + フォルダ一括）、Wenshushu（wenshushu.cn / c.wss.ink 共有——匿名 token チェーン）、Feijipan（share.feijipan.com / feijix.com 共有——AES 署名ネイティブ + フォルダ一括）、CTFile（ctfile.com 共有——パスコード対応、アプリ内 WebView が CAPTCHA 処理）；クラウド/CSDN 共有は正直な案内で一覧表示。
 - 🧲 **BitTorrent** — マグネット＆.torrent に対応（librqbit エンジン、DHT + Tracker）。
 - ⏸️ **一時停止 / 再開 / 再起動対応** — チャンクの進捗はリアルタイムでディスクに保存され、中断したバイト位置から正確に再開。**起動時の自動復帰**にも対応。
 - 🔍 **スマート プローブ** — ファイル名・サイズ・レンジ対応を自動判定。非対応サーバーは自動的に単一接続へフォールバック。

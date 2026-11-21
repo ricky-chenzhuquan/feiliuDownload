@@ -44,7 +44,7 @@
 
 - 🚀 **多连接加速** — 文件自动切分为 8MiB 分片，最高 **64 连接并行**下载；对限速服务器效果拔群。
 - 🔀 **多源聚合加速** — 为同一文件粘贴多个镜像线路，分片在不同 CDN 间轮询，多路带宽叠加。
-- 📺 **站点解析（18+ 平台）** — B 站（视频 / 合集 / 系列 / 番剧一键批量）、抖音（去水印）、快手、小红书、微博、Twitter/X、网易云（免费歌直链 + 歌单批量）、82DJ、蓝奏云（文件夹批量）、GitHub Releases、Internet Archive（公有领域音视频）、Bandcamp（专辑一键批量）、Pixiv（单图 / 多图第1页 / 动图帧zip）、GoFile（gofile.io/d/ 分享直下 + 文件夹一键批量，会话 cookie 自动透传）、TikTok（视频页直下无水印）、UC 网盘（drive.uc.cn / fast.uc.cn 分享——匿名 API 全链 + 会话 cookie 透传）；网盘/CSDN 分享诚实引导结构列出。
+- 📺 **站点解析（21+ 平台）** — B 站（视频 / 合集 / 系列 / 番剧一键批量）、抖音（去水印）、快手、小红书、微博、Twitter/X、网易云（免费歌直链 + 歌单批量）、82DJ、蓝奏云（文件夹批量）、GitHub Releases、Internet Archive（公有领域音视频）、Bandcamp（专辑一键批量）、Pixiv（单图 / 多图第1页 / 动图帧zip）、GoFile（gofile.io/d/ 分享直下 + 文件夹一键批量，会话 cookie 自动透传）、TikTok（视频页直下无水印）、UC 网盘（drive.uc.cn / fast.uc.cn 分享——匿名 API 全链 + 会话 cookie 透传 + 文件夹一键批量）、文叔叔（wenshushu.cn / c.wss.ink 分享——匿名 token 三步链）、小飞机盘（share.feijipan.com / feijix.com 分享——客户端 AES 签名原生复现 + 文件夹一键批量）、城通网盘（ctfile.com 分享——支持提取码，应用内 WebView 自动过人机验证）；网盘/CSDN 分享诚实引导结构列出。
 - 🧲 **BT 下载** — 支持磁力链与 .torrent 种子（librqbit 引擎，DHT + Tracker）。
 - ⏸️ **暂停 / 继续 / 重启无忧** — 分片进度实时落盘，中断后从精确字节恢复；支持**启动时自动恢复**。
 - 🔍 **智能探测** — 自动识别文件名、大小、是否支持断点；不支持的服务器自动降级单连接。
