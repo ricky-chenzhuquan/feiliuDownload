@@ -132,7 +132,23 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     }
 
     // 4) 列出根目录
-    let items = list_share(&http, &shareid, &uk, None).await?;
+    let items = match list_share(&http, &shareid, &uk, None).await {
+        Some(i) => i,
+        None if pwd.is_none() => {
+            // 带提取码的分享但输入未携带 pwd：诚实提示而非「无法解析」
+            // （分享文本的提取码在 URL 之外，前端已自动拼接 pwd=）
+            return Some(super::Extracted {
+                direct_url: String::new(),
+                filename: "百度网盘分享（需提取码）".into(),
+                referer: Some("https://pan.baidu.com/".into()),
+                notice: Some(
+                    "该百度网盘分享需要提取码：请粘贴带「提取码：xxxx」的完整分享文本（会自动识别），或链接后附 ?pwd=提取码".into(),
+                ),
+                webview_plan: None,
+            });
+        }
+        None => return None, // 提取码错误/链接失效
+    };
     let files: Vec<&serde_json::Value> = items
         .iter()
         .filter(|i| i.get("isdir").and_then(|d| d.as_i64()) == Some(0))
@@ -211,4 +227,28 @@ mod tests {
         assert!(info.notice.is_some(), "应包含需登录提示");
         println!("baidu OK: {}", info.filename);
     }
+    #[tokio::test]
+    async fn test_baidu_real_share_with_pwd() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let info = super::super::resolve_retry(
+            "https://pan.baidu.com/s/112xu4YaSMrg8t1FPIg_8lg?pwd=kN66",
+        )
+        .await
+        .expect("百度网盘真实分享解析失败");
+        assert!(
+            info.notice.is_some(),
+            "匿名无直链，应有转存引导提示: {:?}",
+            info.notice
+        );
+        assert!(
+            info.filename.contains("喋血复仇"),
+            "应列出真实内容: {}",
+            info.filename
+        );
+        assert!(info.direct_url.is_empty(), "匿名无下载直链");
+        println!("baidu real OK: {} | notice={:?}", info.filename, info.notice.as_deref().map(|n| n.chars().take(20).collect::<String>()));
+    }
+
 }

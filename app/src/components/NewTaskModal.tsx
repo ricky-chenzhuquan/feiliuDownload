@@ -86,10 +86,20 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
   /** 从任意粘贴文本中提取第一个链接（兼容【标题】https://... 分享格式） */
   const extractFirstUrl = (raw: string): string => {
     const t = raw.trim();
-    if (/^https?:\/\/[!-~]+$/i.test(t)) return t;
-    // URL 仅含 ASCII 可见字符：中文文案（逗号/书名号/空格外字符）一律截断
-    const m = t.match(/https?:\/\/[!-~]+/i);
-    return m ? m[0] : t;
+    let url: string;
+    if (/^https?:\/\/[!-~]+$/i.test(t)) url = t;
+    else {
+      // URL 仅含 ASCII 可见字符：中文文案（逗号/书名号/空格外字符）一律截断
+      const m = t.match(/https?:\/\/[!-~]+/i);
+      url = m ? m[0] : t;
+    }
+    // 百度网盘分享文本自带提取码（「提取码：kN66」）——粘贴整段时码在 URL
+    // 之外，丢失会导致解析失败（用户实测 2026-11-21）；拼回 pwd 参数
+    if (/pan\.baidu\.com/.test(url) && !/pwd=/.test(url)) {
+      const pwd = t.match(/提取码[：:]\s*([A-Za-z0-9]{3,8})/)?.[1];
+      if (pwd) url += (url.includes("?") ? "&" : "?") + "pwd=" + pwd;
+    }
+    return url;
   };
 
   const doProbe = async (raw: string) => {
