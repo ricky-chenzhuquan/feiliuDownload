@@ -222,6 +222,7 @@ async fn resolve_collection(http: &reqwest::Client, url: &str) -> Option<super::
                 "B站合集解析失败（接口 code={}）：合集可能不存在、已失效，或为「系列」类型页面",
                 resp.code
             )),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -233,6 +234,7 @@ async fn resolve_collection(http: &reqwest::Client, url: &str) -> Option<super::
             filename: "B站合集（空）".into(),
             referer: None,
             notice: Some("B站合集：该合集下没有可见视频".into()),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -258,6 +260,7 @@ async fn resolve_series(http: &reqwest::Client, url: &str) -> Option<super::Extr
                 "B站系列解析失败（接口 code={}）：系列可能不存在或已失效",
                 resp.code
             )),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -269,6 +272,7 @@ async fn resolve_series(http: &reqwest::Client, url: &str) -> Option<super::Extr
             filename: "B站系列（空）".into(),
             referer: None,
             notice: Some("B站系列：该系列下没有可见视频".into()),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -304,6 +308,7 @@ fn collection_extracted(
         notice: Some(
             "B站合集/系列：可一键批量添加视频（自动逐个解析直链建任务；单次上限可在设置中调整，防直链过期默认 30）".into(),
         ),
+        cookies: None,
         webview_plan: None,
     }
 }
@@ -391,6 +396,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                 "B站视频无法访问：{reason}（接口 code={}）。请确认链接对应视频仍公开可见",
                 view.code
             )),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -440,6 +446,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: clean_filename(&title, "mp4"),
         referer: Some("https://www.bilibili.com/".into()),
         notice: None,
+            cookies: None,
             webview_plan: None,
     })
 }

@@ -144,6 +144,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                 notice: Some(
                     "该百度网盘分享需要提取码：请粘贴带「提取码：xxxx」的完整分享文本（会自动识别），或链接后附 ?pwd=提取码".into(),
                 ),
+                cookies: None,
                 webview_plan: None,
             });
         }
@@ -192,6 +193,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: Some(
             "百度网盘分享：应用可列出分享内容（提取码已自动验证），但下载必须登录百度账号，文件夹还需官方客户端或先转存到自己网盘（平台限制，匿名无下载直链）".into(),
         ),
+        cookies: None,
         webview_plan: None,
     })
 }

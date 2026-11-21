@@ -89,6 +89,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("gofile_{code}"),
         referer: Some(GOFILE_REFERER.into()),
         notice: None,
+        cookies: None,
         webview_plan: Some(WebviewExtractPlan {
             url: plan_url,
             js: GOFILE_JS.into(),

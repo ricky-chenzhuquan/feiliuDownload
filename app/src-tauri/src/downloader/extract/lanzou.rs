@@ -209,6 +209,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             });
             return Some(super::Extracted {
                 direct_url: String::new(),
+                cookies: None,
                 filename: name,
                 referer: Some("https://www.lanzou.com/".into()),
                 notice: if webview_plan.is_some() {
@@ -250,6 +251,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: Some(
             "蓝奏云文件夹：可一键批量添加文件（逐个通过内嵌 WebView 解析直链，速度较慢属预期；单次上限可在设置中调整）".into(),
         ),
+        cookies: None,
         webview_plan: None,
     })
 }

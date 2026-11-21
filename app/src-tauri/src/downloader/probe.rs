@@ -68,6 +68,8 @@ pub struct ProbeInfo {
     pub content_type: Option<String>,
     /// 站点限制提示（如阿里云盘需登录转存），有值时不启动下载
     pub notice: Option<String>,
+    /// 站点解析透传的会话 cookie（UC 网盘 __pugs 等：随直链探测与下载）
+    pub cookies: Option<String>,
     /// WebView 代取计划（透传自 extract 层）
     pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
 }
@@ -95,12 +97,14 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     let site_referer = extracted.as_ref().and_then(|e| e.referer.clone());
 
     let mut last_err: Option<String> = None;
+    // 解析器透传的会话 cookie：直链探测必须带上才有真实大小（UC __pugs 缺失=403）
+    let ex_cookies = extracted.as_ref().and_then(|e| e.cookies.clone());
     for _attempt in 0..3 {
         let mut info = {
             // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
             let ref_opt = site_referer.as_deref();
-            let r = range_probe_detail(client, target, ref_opt, None).await;
-            let h = head_probe_detail(client, target, ref_opt, None).await;
+            let r = range_probe_detail(client, target, ref_opt, ex_cookies.as_deref()).await;
+            let h = head_probe_detail(client, target, ref_opt, ex_cookies.as_deref()).await;
             match (r, h) {
                 (Some(i), _) => i,
                 (None, Some(i)) => i,
@@ -124,6 +128,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             }
             info.referer = ex.referer.clone();
         info.notice = ex.notice.clone();
+        info.cookies = ex.cookies.clone();
         info.webview_plan = ex.webview_plan.clone();
         }
         // 站点限制提示（歌单/网盘）→ 作为正常结果返回，由上层决定批量/拒绝

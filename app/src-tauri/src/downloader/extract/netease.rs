@@ -117,6 +117,7 @@ async fn resolve_song(id: &str) -> Option<super::Extracted> {
             filename,
             referer: None,
             notice: None,
+            cookies: None,
             webview_plan: None,
         }),
         None => Some(super::Extracted {
@@ -126,6 +127,7 @@ async fn resolve_song(id: &str) -> Option<super::Extracted> {
             notice: Some(
                 "网易云音乐：该歌曲为 VIP/付费歌曲，需登录会员账号才能获取音频直链（平台限制）".into(),
             ),
+            cookies: None,
             webview_plan: None,
         }),
     }
@@ -201,6 +203,7 @@ async fn resolve_playlist(id: &str) -> Option<super::Extracted> {
         notice: Some(
             "网易云音乐歌单：匿名可列出曲目，但歌曲音频需逐首解析下载（免费歌可直接下，VIP 歌曲需会员账号）。请把歌单里的单曲分享链接逐条粘贴到新建任务".into(),
         ),
+        cookies: None,
         webview_plan: None,
     })
 }

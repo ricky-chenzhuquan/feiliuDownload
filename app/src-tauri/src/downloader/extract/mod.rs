@@ -38,6 +38,7 @@ pub mod netease;
 mod pixiv;
 mod tiktok;
 mod twitter;
+pub mod uc;
 pub mod weibo;
 mod xhs;
 
@@ -207,6 +208,8 @@ pub struct Extracted {
     pub referer: Option<String>,
     /// 站点限制说明（如阿里云盘需登录转存）；有值时引擎不启动下载，前端展示提示
     pub notice: Option<String>,
+    /// 会话 cookie（UC 网盘等：API 流程下发的 __pugs 必须随下载请求才 206）
+    pub cookies: Option<String>,
     /// 需要内嵌 WebView 代取直链的计划；engine.add_task 时执行
     pub webview_plan: Option<WebviewExtractPlan>,
 }
@@ -313,6 +316,18 @@ pub async fn canonical_key(url: &str) -> Option<String> {
                 Some(i) => format!("gofile:{code}:i{i}"),
                 None => format!("gofile:{code}"),
             });
+        }
+        return None;
+    }
+    // UC 网盘分享（fast/drive 子域同一 short key）
+    if lower.contains("uc.cn") && lower.contains("/s/") {
+        let idx = lower.find("/s/")? + "/s/".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if !code.is_empty() {
+            return Some(format!("uc:{code}"));
         }
         return None;
     }
@@ -570,6 +585,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // Pixiv 作品页（匿名 ajax API → pximg 原始图直链，CDN 需 Referer）
     if lower.contains("pixiv.net") {
         return pixiv::resolve(url).await;
+    }
+    // UC 网盘分享（原生匿名 API 链路 + __pugs 会话 cookie 透传下载）
+    if lower.contains("uc.cn") && lower.contains("/s/") {
+        return uc::resolve(url).await;
     }
     // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）
     if lower.contains("gofile.io") {

@@ -120,6 +120,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                 filename,
                 referer: None,
                 notice: None,
+                cookies: None,
                 webview_plan: None,
             });
         }
@@ -161,6 +162,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         notice: Some(format!(
             "Bandcamp 专辑「{label}」含 {total} 首曲目{sample_note}。单曲流地址匿名可下：点「一键添加」按设置上限批量下载，或粘贴单曲页链接单独下载",
         )),
+        cookies: None,
         webview_plan: None,
     })
 }

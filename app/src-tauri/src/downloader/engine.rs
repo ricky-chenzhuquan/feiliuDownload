@@ -760,6 +760,10 @@ impl Inner {
                 }
             }
         }
+        // 原生解析器透传的会话 cookie（UC 网盘等：API 流程下发的 __pugs 必须随下载）
+        if wv_cookie.is_none() {
+            wv_cookie = info.cookies.clone();
+        }
         if dl_url.is_empty() {
             return Err("未解析出可下载的直链".into());
         }

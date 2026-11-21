@@ -189,6 +189,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             notice: Some(format!(
                 "B站番剧「{title}」共 {total} 集{paid_note}{sample_note}。免费集匿名可下（画质以登录状态为准）：点「一键添加」按设置上限批量下载，或粘贴单集页链接单独下载",
             )),
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -209,6 +210,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             filename: clean_filename(&format!("{title} - {label}"), "mp4"),
             referer: Some(BILI_REFERER.to_string()),
             notice: None,
+            cookies: None,
             webview_plan: None,
         }),
         EpFetch::Preview => Some(super::Extracted {
@@ -218,6 +220,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             notice: Some(format!(
                 "「{title} - {label}」为会员专享剧集，匿名只能获取试看预览片段，无法完整下载（登录大会员后可看）"
             )),
+            cookies: None,
             webview_plan: None,
         }),
         EpFetch::NoStream => None,

@@ -81,6 +81,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: format!("weibo_{}", target.rsplit('/').next().unwrap_or("video")),
         referer: Some(WB_REFERER.into()),
         notice: None,
+        cookies: None,
         webview_plan: Some(WebviewExtractPlan {
             url: target,
             js: WEIBO_JS.into(),

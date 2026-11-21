@@ -59,6 +59,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: clean_filename(&title, "mp4"),
         referer: Some("https://www.82dj.com/".into()),
         notice: None,
+        cookies: None,
         webview_plan: Some(plan),
     })
 }

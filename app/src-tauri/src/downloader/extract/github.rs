@@ -91,6 +91,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             filename: clean_filename(name, "bin"),
             referer: None,
             notice: None,
+            cookies: None,
             webview_plan: None,
         });
     }
@@ -120,6 +121,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             "GitHub Release：该版本含 {} 个资产（不同平台安装包），请到 https://github.com/{owner}/{repo}/releases/tag/{tag} 选择对应平台的资产直接下载（GitHub 直链无需登录，粘贴资产链接即可）",
             assets.len()
         )),
+        cookies: None,
         webview_plan: None,
     })
 }

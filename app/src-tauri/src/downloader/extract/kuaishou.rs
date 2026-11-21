@@ -66,6 +66,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         // CDN 实测无 Referer 也 200；referer 不设，避免多余约束
         referer: None,
         notice: None,
+        cookies: None,
         webview_plan: None,
     })
 }

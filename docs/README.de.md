@@ -31,6 +31,7 @@
 | Bild | Pixiv Werkseiten | ✅ direkter Link (Original / Ugoira-Frame-ZIP) | ✅ Multi-Thread |
 | Cloud | GoFile gofile.io/d/-Shares | ✅ direkter Link (WebView, Sitzungs-Cookie) | ✅ Multi-Thread + Ordner-Stapel |
 | Video | TikTok Videoseiten (inkl. vt/vm-Kurzlinks) | ✅ direkter Link (ohne WM) | ✅ Multi-Thread |
+| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn Shares | ✅ direkter Link (Sitzungs-Cookie automatisch) | ✅ Multi-Thread |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |
@@ -40,7 +41,7 @@
 
 - 🚀 **Multi-Connection-Beschleunigung** — Dateien werden in 8-MiB-Chunks aufgeteilt und mit bis zu **64 parallelen Verbindungen** geladen. Dramatisch schneller bei gedrosselten Servern.
 - 🔀 **Multi-Source-Aggregation** — zusätzliche Mirror-URLs für dieselbe Datei einfügen; Chunks rotieren über CDNs und die Durchsätze addieren sich.
-- 📺 **Site-Extraktion (18+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares — direkt + Ordner-Stapel, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM); Cloud-Drive-/CSDN-Shares werden ehrlich aufgelistet.
+- 📺 **Site-Extraktion (18+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares — direkt + Ordner-Stapel, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM), UC Netdisk (drive.uc.cn / fast.uc.cn Shares — anonyme API-Kette mit Sitzungs-Cookie); Cloud-Drive-/CSDN-Shares werden ehrlich aufgelistet.
 - 🧲 **BitTorrent** — Magnet-Links & .torrent-Dateien dank librqbit (DHT + Tracker).
 - ⏸️ **Pause / Fortsetzen / Neustart-sicher** — der Chunk-Fortschritt liegt in Echtzeit auf der Festplatte; unterbrochene Downloads setzen exakt am letzten Byte fort. Optionales **Auto-Resume beim Start**.
 - 🔍 **Intelligente Erkennung** — Dateiname, Größe und Range-Unterstützung werden automatisch erkannt; Server ohne Byte-Range-Support weichen elegant auf eine einzelne Verbindung aus.

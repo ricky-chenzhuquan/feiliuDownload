@@ -115,6 +115,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename: clean_filename(&desc, "mp4"),
         referer: None,
         notice: None,
+            cookies: None,
             webview_plan: None,
     })
 }

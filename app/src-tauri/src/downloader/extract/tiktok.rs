@@ -144,6 +144,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         filename,
         referer: Some(TT_REFERER.into()),
         notice: None,
+        cookies: None,
         webview_plan: None,
     })
 }

@@ -31,6 +31,7 @@
 | Image | Pixiv artwork pages | ✅ direct link (original image / ugoira frame ZIP) | ✅ multi-thread |
 | Cloud | GoFile gofile.io/d/ shares | ✅ direct link (WebView-resolved, session cookie) | ✅ multi-thread + folder one-click batch |
 | Video | TikTok video pages (incl. vt/vm share short links) | ✅ direct link (watermark-free) | ✅ multi-thread |
+| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn shares | ✅ direct link (session cookie auto-passthrough) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
@@ -40,7 +41,7 @@
 
 - 🚀 **Multi-connection acceleration** — files are split into 8 MiB chunks and downloaded with up to **64 parallel connections**. Dramatic speedups on throttled servers.
 - 🔀 **Multi-source (mirror) downloading** — paste extra mirror URLs for the same file; chunks rotate across CDNs so throughput stacks.
-- 📺 **Site extraction (18+ platforms)** — Bilibili (video / collection / series / bangumi with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp (albums one-click batch), Pixiv (single image / multi-page p0 / ugoira frame ZIP), GoFile (gofile.io/d/ shares — direct download + folder one-click batch, session cookie handled automatically), TikTok (video pages, watermark-free); cloud-drive/CSDN shares are listed with honest guidance.
+- 📺 **Site extraction (18+ platforms)** — Bilibili (video / collection / series / bangumi with one-click batch), Douyin (watermark-free), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (free songs direct + playlist batch), 82DJ, Lanzou Cloud (folder batch), GitHub Releases, Internet Archive (public-domain media), Bandcamp (albums one-click batch), Pixiv (single image / multi-page p0 / ugoira frame ZIP), GoFile (gofile.io/d/ shares — direct download + folder one-click batch, session cookie handled automatically), TikTok (video pages, watermark-free), UC Netdisk (drive.uc.cn / fast.uc.cn shares — anonymous API chain with session-cookie passthrough); cloud-drive/CSDN shares are listed with honest guidance.
 - 🧲 **BitTorrent** — magnet links & .torrent files powered by librqbit (DHT + trackers).
 - ⏸️ **Pause / resume / restart-safe** — chunk progress lives on disk in real time; interrupted downloads resume from the exact byte. Optional **auto-resume on launch**.
 - 🔍 **Smart probing** — filename, size and range-support are detected automatically; servers without byte-range support fall back to a single connection gracefully.
