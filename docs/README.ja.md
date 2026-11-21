@@ -31,7 +31,7 @@
 | 画像 | Pixiv 作品ページ | ✅ 直リンク（原画 / うごイラframe ZIP） | ✅ マルチスレッド |
 | クラウド | GoFile gofile.io/d/ 共有 | ✅ 直リンク（WebView + セッションcookie） | ✅ マルチスレッド + フォルダ一括 |
 | 動画 | TikTok 動画ページ（vt/vm 短縮リンク対応） | ✅ 直リンク（WMなし） | ✅ マルチスレッド |
-| クラウド | UCクラウド drive.uc.cn / fast.uc.cn 共有 | ✅ 直リンク（セッション cookie 自動） | ✅ マルチスレッド |
+| クラウド | UCクラウド drive.uc.cn / fast.uc.cn 共有 | ✅ 直リンク（セッション cookie 自動） | ✅ マルチスレッド + フォルダ一括 |
 | BT | マグネット / .torrent | ✅ | ✅ BT エンジン（DHT） |
 | クラウド | 蓝奏云（単一ファイル直リンク；フォルダ一括） | ✅ 直リンク | ✅ アプリ内 WebView 代取 |
 | クラウド | Aliyun Drive · 百度網盤 · CSDN | ✅ 一覧 | ⚠️ プラットフォーム制限 |

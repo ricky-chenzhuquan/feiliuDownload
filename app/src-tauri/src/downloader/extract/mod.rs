@@ -327,7 +327,22 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             .take_while(|c| c.is_ascii_alphanumeric())
             .collect();
         if !code.is_empty() {
-            return Some(format!("uc:{code}"));
+            let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
+                let p = lower.find(m)?;
+                let digits: String = url[p + m.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if digits.is_empty() {
+                    None
+                } else {
+                    Some(digits)
+                }
+            });
+            return Some(match fi {
+                Some(i) => format!("uc:{code}:i{i}"),
+                None => format!("uc:{code}"),
+            });
         }
         return None;
     }

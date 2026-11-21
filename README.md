@@ -31,7 +31,7 @@
 | Image | Pixiv artwork pages | ✅ direct link (original image / ugoira frame ZIP) | ✅ multi-thread |
 | Cloud | GoFile gofile.io/d/ shares | ✅ direct link (WebView-resolved, session cookie) | ✅ multi-thread + folder one-click batch |
 | Video | TikTok video pages (incl. vt/vm share short links) | ✅ direct link (watermark-free) | ✅ multi-thread |
-| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn shares | ✅ direct link (session cookie auto-passthrough) | ✅ multi-thread |
+| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn shares | ✅ direct link (session cookie auto-passthrough) | ✅ multi-thread + folder batch |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |

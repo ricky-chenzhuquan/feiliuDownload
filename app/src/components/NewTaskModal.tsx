@@ -7,6 +7,7 @@ import {
   addBilibiliBangumi,
   addLanzouFolder,
   addGofileBatch,
+  addUcBatch,
   getSettings,
   isMobile,
   pickFolder,
@@ -173,7 +174,9 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
             ? addLanzouFolder(probe.url, dir.trim() || undefined, connections)
             : kind === "gofile_share"
               ? addGofileBatch(probe.url, dir.trim() || undefined, connections)
-              : kind === "bandcamp_album"
+              : kind === "uc_share"
+                ? addUcBatch(probe.url, dir.trim() || undefined, connections)
+                : kind === "bandcamp_album"
                 ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
               : kind === "bilibili_bangumi"
                 ? addBilibiliBangumi(probe.url, dir.trim() || undefined, connections)
@@ -330,7 +333,9 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                         ? `⚡ 一键添加文件夹文件（前 ${batchLimit} 个）`
                         : probe.batch_kind === "gofile_share"
                           ? `⚡ 一键添加分享内文件（前 ${batchLimit} 个）`
-                          : probe.batch_kind === "bandcamp_album"
+                          : probe.batch_kind === "uc_share"
+                            ? `⚡ 一键添加分享内文件（前 ${batchLimit} 个）`
+                            : probe.batch_kind === "bandcamp_album"
                             ? `⚡ 一键添加专辑曲目（前 ${batchLimit} 首）`
                           : probe.batch_kind === "bilibili_bangumi"
                             ? `⚡ 一键添加番剧集（前 ${batchLimit} 集）`

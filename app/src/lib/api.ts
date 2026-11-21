@@ -41,6 +41,7 @@ export interface ProbeResult {
     | "bilibili_collection"
     | "lanzou_folder"
     | "gofile_share"
+    | "uc_share"
     | "bandcamp_album"
     | "bilibili_bangumi"
     | null;
@@ -108,6 +109,12 @@ export const addGofileBatch = (
   dir?: string,
   connections?: number,
 ) => invoke<BatchSummary>("add_gofile_batch", { url, dir, connections });
+
+export const addUcBatch = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_uc_batch", { url, dir, connections });
 
 export const addBandcampAlbum = (
   url: string,

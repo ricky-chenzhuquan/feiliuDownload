@@ -31,7 +31,7 @@
 | Bild | Pixiv Werkseiten | ✅ direkter Link (Original / Ugoira-Frame-ZIP) | ✅ Multi-Thread |
 | Cloud | GoFile gofile.io/d/-Shares | ✅ direkter Link (WebView, Sitzungs-Cookie) | ✅ Multi-Thread + Ordner-Stapel |
 | Video | TikTok Videoseiten (inkl. vt/vm-Kurzlinks) | ✅ direkter Link (ohne WM) | ✅ Multi-Thread |
-| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn Shares | ✅ direkter Link (Sitzungs-Cookie automatisch) | ✅ Multi-Thread |
+| Cloud | UC Netdisk drive.uc.cn / fast.uc.cn Shares | ✅ direkter Link (Sitzungs-Cookie automatisch) | ✅ Multi-Thread + Ordner-Stapel |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |

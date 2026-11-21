@@ -31,7 +31,7 @@
 | 图片 | Pixiv 作品页 | ✅ 直链（原图 / 动图帧zip） | ✅ 多线程 |
 | 网盘 | GoFile gofile.io/d/ 分享 | ✅ 直链（WebView 代取 + 会话 cookie） | ✅ 多线程 + 文件夹一键批量 |
 | 视频 | TikTok 视频页（含 vt/vm 分享短链） | ✅ 直链（无水印） | ✅ 多线程 |
-| 网盘 | UC 网盘 drive.uc.cn / fast.uc.cn 分享 | ✅ 直链（会话 cookie 自动透传） | ✅ 多线程 |
+| 网盘 | UC 网盘 drive.uc.cn / fast.uc.cn 分享 | ✅ 直链（会话 cookie 自动透传） | ✅ 多线程 + 文件夹一键批量 |
 | 种子 | 磁力 / .torrent | ✅ | ✅ BT 引擎（DHT） |
 | 网盘 | 蓝奏云（单文件直链；文件夹一键批量） | ✅ 直链 | ✅ 内嵌 WebView 代取 |
 | 网盘 | 阿里云盘 · 百度网盘 · CSDN | ✅ 结构列出 | ⚠️ 平台限制（登录墙/指纹墙） |

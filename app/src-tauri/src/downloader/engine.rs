@@ -444,6 +444,9 @@ impl Inner {
         // （清单数只有代取时知道；单文件分享点批量=添加 1 个任务，无害）
         let batch_kind = if lower.contains("gofile.io") && lower.contains("/d/") {
             Some("gofile_share".to_string())
+        } else if lower.contains("uc.cn") && lower.contains("/s/") {
+            // UC 网盘：单文件可普通添加、多文件/文件夹可批量（序号 URL 逐个建任务）
+            Some("uc_share".to_string())
         } else if notice.is_some()
             && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"))
         {
@@ -620,6 +623,38 @@ impl Inner {
             {
                 Ok(_) => added += 1,
                 Err(_) => skipped += 1, // 代取超时/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
+    /// UC 网盘分享一键批量：原生扁平清单（根文件+子文件夹一层）→ 逐个 feiliu_i 序号建任务
+    /// （每个文件一次独立解析链拿直链+会话 cookie，同蓝奏云/gofile 批量模式）
+    pub async fn add_uc_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let (name, urls) = crate::downloader::extract::uc::folder_file_urls(&url)
+            .await
+            .ok_or("UC 分享清单解析失败")?;
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 限流/风控/重复
             }
         }
         Ok(BatchSummary {
@@ -2186,6 +2221,31 @@ mod tests {
     use super::*;
 
     /// GoFile probe_url 批量判定：d/ 分享恒有 gofile_share 批量键（前端按钮依据）
+    #[tokio::test]
+    async fn test_uc_probe_batch_kind() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let mgr = TaskManager::new();
+        let p = mgr
+            .inner
+            .probe_url("https://drive.uc.cn/s/12450d1694844?public=1")
+            .await
+            .expect("probe 失败");
+        assert_eq!(p.batch_kind.as_deref(), Some("uc_share"));
+        let p2 = mgr
+            .inner
+            .probe_url("https://drive.uc.cn/s/a55f8f6ebd234?public=1&feiliu_i=3")
+            .await
+            .expect("probe 失败");
+        assert_eq!(p2.batch_kind.as_deref(), Some("uc_share"), "序号形态同判");
+        assert!(
+            p2.url.contains(".pds.uc.cn/"),
+            "序号形态应解析出直链（批量入口）: {}",
+            p2.url
+        );
+    }
+
     #[tokio::test]
     async fn test_gofile_probe_batch_kind() {
         if std::env::var("FEILIU_NET_TEST").is_err() {
