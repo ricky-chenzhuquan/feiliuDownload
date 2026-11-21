@@ -33,6 +33,7 @@
 | Video | TikTok Videoseiten (inkl. vt/vm-Kurzlinks) | ✅ direkter Link (ohne WM) | ✅ Multi-Thread |
 | Cloud | UC Netdisk drive.uc.cn / fast.uc.cn Shares | ✅ direkter Link (Sitzungs-Cookie automatisch) | ✅ Multi-Thread + Ordner-Stapel |
 | Cloud | Wenshushu wenshushu.cn / c.wss.ink Shares | ✅ direkter Link (anonyme Token-Kette) | ✅ Multi-Thread |
+| Cloud | Feijipan share.feijipan.com / feijix.com Shares | ✅ direkter Link (AES-Signatur nativ) | ✅ Multi-Thread |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |

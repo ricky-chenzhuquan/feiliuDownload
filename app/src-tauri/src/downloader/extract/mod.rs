@@ -38,6 +38,7 @@ pub mod netease;
 mod pixiv;
 mod tiktok;
 mod twitter;
+pub mod fj;
 pub mod uc;
 pub mod ws;
 pub mod weibo;
@@ -359,6 +360,18 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         }
         return None;
     }
+    // 小飞机盘分享（feijipan/feijix 双域同 id）
+    if (lower.contains("feijipan.com") || lower.contains("feijix.com")) && lower.contains("/s/") {
+        let idx = lower.find("/s/")? + "/s/".len();
+        let id: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if !id.is_empty() {
+            return Some(format!("fj:{id}"));
+        }
+        return None;
+    }
     // B 站番剧（ep/ss）
     if lower.contains("bilibili.com/bangumi/play/") {
         for (marker, tag) in [("ep", "bgm-ep:"), ("ss", "bgm-ss:")] {
@@ -621,6 +634,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 文叔叔分享（匿名 token 三步链，无签名墙）
     if (lower.contains("wenshushu.cn") || lower.contains("wss.ink")) && lower.contains("/f/") {
         return ws::resolve(url).await;
+    }
+    // 小飞机盘分享（AES-ECB 客户端签名 + 302 直链）
+    if (lower.contains("feijipan.com") || lower.contains("feijix.com")) && lower.contains("/s/") {
+        return fj::resolve(url).await;
     }
     // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）
     if lower.contains("gofile.io") {
