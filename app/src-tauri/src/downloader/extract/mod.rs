@@ -39,6 +39,7 @@ mod pixiv;
 mod tiktok;
 mod twitter;
 pub mod uc;
+pub mod ws;
 pub mod weibo;
 mod xhs;
 
@@ -346,6 +347,18 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         }
         return None;
     }
+    // 文叔叔分享（wenshushu.cn 与短域 wss.ink 同 tid）
+    if (lower.contains("wenshushu.cn") || lower.contains("wss.ink")) && lower.contains("/f/") {
+        let idx = lower.find("/f/")? + "/f/".len();
+        let tid: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if !tid.is_empty() {
+            return Some(format!("ws:{tid}"));
+        }
+        return None;
+    }
     // B 站番剧（ep/ss）
     if lower.contains("bilibili.com/bangumi/play/") {
         for (marker, tag) in [("ep", "bgm-ep:"), ("ss", "bgm-ss:")] {
@@ -604,6 +617,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // UC 网盘分享（原生匿名 API 链路 + __pugs 会话 cookie 透传下载）
     if lower.contains("uc.cn") && lower.contains("/s/") {
         return uc::resolve(url).await;
+    }
+    // 文叔叔分享（匿名 token 三步链，无签名墙）
+    if (lower.contains("wenshushu.cn") || lower.contains("wss.ink")) && lower.contains("/f/") {
+        return ws::resolve(url).await;
     }
     // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）
     if lower.contains("gofile.io") {

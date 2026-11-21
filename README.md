@@ -32,6 +32,7 @@
 | Cloud | GoFile gofile.io/d/ shares | ✅ direct link (WebView-resolved, session cookie) | ✅ multi-thread + folder one-click batch |
 | Video | TikTok video pages (incl. vt/vm share short links) | ✅ direct link (watermark-free) | ✅ multi-thread |
 | Cloud | UC Netdisk drive.uc.cn / fast.uc.cn shares | ✅ direct link (session cookie auto-passthrough) | ✅ multi-thread + folder batch |
+| Cloud | Wenshushu wenshushu.cn / c.wss.ink shares | ✅ direct link (anonymous token chain) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |
