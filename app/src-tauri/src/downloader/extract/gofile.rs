@@ -92,6 +92,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         cookies: None,
         webview_plan: Some(WebviewExtractPlan {
             url: plan_url,
+            visible: false,
             js: GOFILE_JS.into(),
             timeout_ms: 30_000,
         }),

@@ -34,6 +34,7 @@
 | クラウド | UCクラウド drive.uc.cn / fast.uc.cn 共有 | ✅ 直リンク（セッション cookie 自動） | ✅ マルチスレッド + フォルダ一括 |
 | クラウド | Wenshushu wenshushu.cn / c.wss.ink 共有 | ✅ 直リンク（匿名 token チェーン） | ✅ マルチスレッド |
 | クラウド | Feijipan share.feijipan.com / feijix.com 共有 | ✅ 直リンク（AES 署名ネイティブ） | ✅ マルチスレッド |
+| クラウド | CTFile ctfile.com 共有 | ✅ 直リンク（パスコード対応；アプリ内 WebView が CAPTCHA 処理） | ✅ マルチスレッド |
 | BT | マグネット / .torrent | ✅ | ✅ BT エンジン（DHT） |
 | クラウド | 蓝奏云（単一ファイル直リンク；フォルダ一括） | ✅ 直リンク | ✅ アプリ内 WebView 代取 |
 | クラウド | Aliyun Drive · 百度網盤 · CSDN | ✅ 一覧 | ⚠️ プラットフォーム制限 |

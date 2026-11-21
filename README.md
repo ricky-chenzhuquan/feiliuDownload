@@ -34,6 +34,7 @@
 | Cloud | UC Netdisk drive.uc.cn / fast.uc.cn shares | ✅ direct link (session cookie auto-passthrough) | ✅ multi-thread + folder batch |
 | Cloud | Wenshushu wenshushu.cn / c.wss.ink shares | ✅ direct link (anonymous token chain) | ✅ multi-thread |
 | Cloud | Feijipan share.feijipan.com / feijix.com shares | ✅ direct link (client AES signing reproduced natively) | ✅ multi-thread |
+| Cloud | CTFile ctfile.com shares | ✅ direct link (passcode supported; in-app webview auto-passes CAPTCHA) | ✅ multi-thread |
 | Torrent | magnet / .torrent | ✅ | ✅ BT engine (DHT) |
 | Cloud | Lanzou Cloud (single file direct; folder one-click batch) | ✅ direct link | ✅ in-app WebView assist |
 | Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ structure | ⚠️ platform walls (account login / anti-bot) |

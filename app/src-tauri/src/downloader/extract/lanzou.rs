@@ -203,6 +203,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                 };
                 super::WebviewExtractPlan {
                     url: abs,
+                    visible: false,
                     js: r##"(()=>{const a=document.querySelector("#tourl a");return a?JSON.stringify(a.href):"";})()"##.into(),
                     timeout_ms: 20_000,
                 }

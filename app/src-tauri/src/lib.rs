@@ -87,6 +87,7 @@ pub fn run() {
                     eprintln!("[feiliu-selftest] 开始 WebView 代取自检（82dj/play/31534）");
                     let plan = downloader::extract::WebviewExtractPlan {
                         url: "https://www.82dj.com/play/31534".into(),
+                        visible: false,
                         js: r##"(()=>{const a=document.querySelector("audio");return a?JSON.stringify(a.currentSrc||a.src||""):"";})()"##.into(),
                         timeout_ms: 15_000,
                     };
@@ -201,6 +202,48 @@ pub fn run() {
                                 ),
                                 Err(e) => eprintln!("[feiliu-selftest] gofile-download({label}): err={e}"),
                             }
+                        }
+                    });
+                }
+
+                // 自检 3b：城通 WebView 代取端到端（ALTCHA 自动验证 + api2 新链路）
+                #[cfg(debug_assertions)]
+                {
+                    let ct_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                        eprintln!("[feiliu-selftest] 开始城通 WebView 自检（9603111-996209741-b3814a，生产 resolve 链路）");
+                        let plan = downloader::extract::ct::resolve("https://url11.ctfile.com/f/9603111-996209741-b3814a?p=5425")
+                            .await
+                            .and_then(|e| e.webview_plan)
+                            .ok_or("ct resolve 未产出代取计划")
+                            .expect("ct resolve 失败");
+                        let started = std::time::Instant::now();
+                        let wv = match downloader::webview_extract::extract(ct_handle, &plan).await {
+                            Ok(w) => w,
+                            Err(e) => {
+                                eprintln!("[feiliu-selftest] ct-extract: 失败 {:.1}s err={e}", started.elapsed().as_secs_f64());
+                                return;
+                            }
+                        };
+                        eprintln!(
+                            "[feiliu-selftest] ct-extract: 成功 {:.1}s url={} name={}",
+                            started.elapsed().as_secs_f64(),
+                            &wv.url[..90.min(wv.url.len())],
+                            wv.name.as_deref().unwrap_or("-"),
+                        );
+                        let client = match reqwest::Client::builder().user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").build() {
+                            Ok(c) => c,
+                            Err(e) => { eprintln!("[feiliu-selftest] ct-client: {e}"); return; }
+                        };
+                        match client.get(&wv.url).header("Range", "bytes=0-1023").header("Referer", "https://url11.ctfile.com/").send().await {
+                            Ok(r) => {
+                                let status = r.status();
+                                let ctype = r.headers().get("content-type").and_then(|v| v.to_str().ok()).map(String::from);
+                                let n = r.bytes().await.map(|b| b.len()).unwrap_or(0);
+                                eprintln!("[feiliu-selftest] ct-download: HTTP {status} type={ctype:?} bytes={n}");
+                            }
+                            Err(e) => eprintln!("[feiliu-selftest] ct-download: err={e}"),
                         }
                     });
                 }

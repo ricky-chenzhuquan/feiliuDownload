@@ -34,6 +34,7 @@
 | 网盘 | UC 网盘 drive.uc.cn / fast.uc.cn 分享 | ✅ 直链（会话 cookie 自动透传） | ✅ 多线程 + 文件夹一键批量 |
 | 网盘 | 文叔叔 wenshushu.cn / c.wss.ink 分享 | ✅ 直链（匿名 token 三步链） | ✅ 多线程 |
 | 网盘 | 小飞机盘 share.feijipan.com / feijix.com 分享 | ✅ 直链（客户端 AES 签名原生复现） | ✅ 多线程 |
+| 网盘 | 城通网盘 ctfile.com 分享 | ✅ 直链（支持提取码；应用内 WebView 自动过人机验证） | ✅ 多线程 |
 | 种子 | 磁力 / .torrent | ✅ | ✅ BT 引擎（DHT） |
 | 网盘 | 蓝奏云（单文件直链；文件夹一键批量） | ✅ 直链 | ✅ 内嵌 WebView 代取 |
 | 网盘 | 阿里云盘 · 百度网盘 · CSDN | ✅ 结构列出 | ⚠️ 平台限制（登录墙/指纹墙） |

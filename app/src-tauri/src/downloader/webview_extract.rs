@@ -96,20 +96,29 @@ pub async fn extract(
 ) -> Result<WebviewResult, String> {
     let label = format!("webview-extract-{}", uuid::Uuid::new_v4());
     eprintln!("[feiliu-webview] 创建代取窗口 url={}", plan.url);
-    let window = WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         &app,
         &label,
         WebviewUrl::External(plan.url.parse().map_err(|e| format!("URL 解析失败: {e}"))?),
     )
     .title("feiliu-extract")
-    .visible(false)
     .skip_taskbar(true)
-    .inner_size(420.0, 320.0)
+    .inner_size(480.0, 400.0)
     // document-start 注入静音 hook：先于页面全部 JS（含 autoplay）执行，
     // 零出声间隙（2026-11-20 用户报障「打电话时放歌」的治本修复）
-    .initialization_script(MUTE_JS)
-    .build()
-    .map_err(|e| format!("创建 WebView 窗口失败: {e}"))?;
+    .initialization_script(MUTE_JS);
+    // ALTCHA 等 PoW 验证码依赖页内计时器，隐藏 WebView 被 WebKit 节流
+    // （1Hz）爬行——此类站点（plan.visible=true）用可见窗口全速跑完
+    if !plan.visible {
+        builder = builder.visible(false);
+    }
+    let window = builder
+        .build()
+        .map_err(|e| format!("创建 WebView 窗口失败: {e}"))?;
+    if plan.visible {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 
     // 窗口建好后立即静音（页面 load 前的 eval 可能无效，轮询里会重复执行）
     let _ = window.eval(MUTE_JS);

@@ -49,6 +49,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     // 音频 src 前端计算 → WebView 代取 play 页读 audio.currentSrc
     let plan = super::WebviewExtractPlan {
         url: url.trim_end_matches('/').to_string(),
+        visible: false,
         js: r##"(()=>{const a=document.querySelector("audio");return a?JSON.stringify(a.currentSrc||a.src||""):"";})()"##.into(),
         timeout_ms: 15_000,
     };

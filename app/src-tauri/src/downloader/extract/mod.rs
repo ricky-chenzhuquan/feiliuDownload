@@ -38,6 +38,7 @@ pub mod netease;
 mod pixiv;
 mod tiktok;
 mod twitter;
+pub mod ct;
 pub mod fj;
 pub mod uc;
 pub mod ws;
@@ -201,6 +202,11 @@ pub struct WebviewExtractPlan {
     pub url: String,
     pub js: String,
     pub timeout_ms: u64,
+    /// 可见窗口（默认隐藏）。ALTCHA 等依赖页内计时器的 PoW 验证码在隐藏
+    /// WebView 里被 WebKit 节流（1Hz）爬行甚至卡死——城通实测 90s 超时，
+    /// 此类站点代取需短暂可见窗口让验证码全速跑完（r4 轮 17 实锤）
+    #[serde(default)]
+    pub visible: bool,
 }
 
 /// 解析结果：直链 + 建议文件名 + 站点要求头 + 提示
@@ -369,6 +375,18 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             .collect();
         if !id.is_empty() {
             return Some(format!("fj:{id}"));
+        }
+        return None;
+    }
+    // 城通分享（{uid子域}.ctfile.com/f/{key}，访问码不入键）
+    if lower.contains("ctfile.com") && lower.contains("/f/") {
+        let idx = lower.find("/f/")? + "/f/".len();
+        let key: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect();
+        if !key.is_empty() {
+            return Some(format!("ct:{key}"));
         }
         return None;
     }
@@ -638,6 +656,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     // 小飞机盘分享（AES-ECB 客户端签名 + 302 直链）
     if (lower.contains("feijipan.com") || lower.contains("feijix.com")) && lower.contains("/s/") {
         return fj::resolve(url).await;
+    }
+    // 城通网盘分享（ALTCHA PoW 墙 → WebView 代取，api2 新链路）
+    if lower.contains("ctfile.com") && lower.contains("/f/") {
+        return ct::resolve(url).await;
     }
     // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）
     if lower.contains("gofile.io") {
