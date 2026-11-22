@@ -39,6 +39,7 @@
 | クラウド | 蓝奏云（単一ファイル直リンク；フォルダ一括） | ✅ 直リンク | ✅ アプリ内 WebView 代取 |
 | クラウド | 百度網盤 pan.baidu.com 共有 | ✅ パスコード検証 + 構造一覧（匿名）；転送 → 直リンク（アプリ内ログイン） | ✅ マルチスレッド + 一括（ログイン） |
 | クラウド | クアーク網盤 pan.quark.cn 共有 | ✅ 直リンク（10MiB 以下匿名；大ファイルはログイン後自動転送で直 DL） | ✅ マルチスレッド |
+| クラウド | 123クラウド 123pan.com 共有 | ✅ 構造一覧（匿名）；ログイン後直リンク DL（月 10GB 無料枠） | ✅ マルチスレッド（ログイン） |
 | クラウド | Aliyun Drive · CSDN | ✅ 一覧 | ⚠️ プラットフォーム制限 |
 
 ## ✨ 機能
@@ -46,7 +47,7 @@
 
 - 🚀 **マルチ接続アクセラレーション** — ファイルを 8MiB のチャンクに分割し、最大 **64 接続で並列ダウンロード**。速度制限のあるサーバーで劇的に高速化。
 - 🔀 **マルチソース集約** — 同一ファイルのミラー URL を追加し、チャンクが複数 CDN を巡回して速度を積み上げます。
-- 📺 **サイト解析（23+ プラットフォーム）** — ビリビリ（動画 / コレクション / シリーズ / アニメ一括）、Douyin（WMなし）、快手、小紅書、Weibo、Twitter/X、網易雲音楽（無料曲直リンク + プレイリスト一括）、82DJ、蓝奏云（フォルダ一括）、GitHub Releases、Internet Archive（パブリックドメイン音動画）、Bandcamp（アルバム一括）、Pixiv（単発 / 漫画p0 / うごイラフレームZIP）、GoFile（gofile.io/d/ 共有直 DL + フォルダ一括、セッション cookie 自動）、TikTok（動画ページ直 DL、WMなし）、UCクラウド（drive.uc.cn / fast.uc.cn 共有——匿名 API 全链 + セッション cookie + フォルダ一括）、Wenshushu（wenshushu.cn / c.wss.ink 共有——匿名 token チェーン）、Feijipan（share.feijipan.com / feijix.com 共有——AES 署名ネイティブ + フォルダ一括）、CTFile（ctfile.com 共有——パスコード対応、アプリ内 WebView が CAPTCHA 処理）、百度網盤（pan.baidu.com 共有——パスコード自動認識で匿名の構造一覧；アプリ内ログインで転送直リンク DL + 一括）、クアーク網盤（pan.quark.cn 共有——10MiB 以下匿名直 DL；ログイン後大ファイル自動転送直 DL）；アリクラウド/CSDN 共有は正直な案内で一覧表示。
+- 📺 **サイト解析（24+ プラットフォーム）** — ビリビリ（動画 / コレクション / シリーズ / アニメ一括）、Douyin（WMなし）、快手、小紅書、Weibo、Twitter/X、網易雲音楽（無料曲直リンク + プレイリスト一括）、82DJ、蓝奏云（フォルダ一括）、GitHub Releases、Internet Archive（パブリックドメイン音動画）、Bandcamp（アルバム一括）、Pixiv（単発 / 漫画p0 / うごイラフレームZIP）、GoFile（gofile.io/d/ 共有直 DL + フォルダ一括、セッション cookie 自動）、TikTok（動画ページ直 DL、WMなし）、UCクラウド（drive.uc.cn / fast.uc.cn 共有——匿名 API 全链 + セッション cookie + フォルダ一括）、Wenshushu（wenshushu.cn / c.wss.ink 共有——匿名 token チェーン）、Feijipan（share.feijipan.com / feijix.com 共有——AES 署名ネイティブ + フォルダ一括）、CTFile（ctfile.com 共有——パスコード対応、アプリ内 WebView が CAPTCHA 処理）、百度網盤（pan.baidu.com 共有——パスコード自動認識で匿名の構造一覧；アプリ内ログインで転送直リンク DL + 一括）、クアーク網盤（pan.quark.cn 共有——10MiB 以下匿名直 DL；ログイン後大ファイル自動転送直 DL）、123クラウド（123pan.com 共有——匿名で構造一覧；ログイン後月 10GB 無料枠で直リンク DL）；アリクラウド/CSDN 共有は正直な案内で一覧表示。
 - 🧲 **BitTorrent** — マグネット＆.torrent に対応（librqbit エンジン、DHT + Tracker）。
 - ⏸️ **一時停止 / 再開 / 再起動対応** — チャンクの進捗はリアルタイムでディスクに保存され、中断したバイト位置から正確に再開。**起動時の自動復帰**にも対応。
 - 🔍 **スマート プローブ** — ファイル名・サイズ・レンジ対応を自動判定。非対応サーバーは自動的に単一接続へフォールバック。
