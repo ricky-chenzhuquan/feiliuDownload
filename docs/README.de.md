@@ -37,14 +37,15 @@
 | Cloud | CTFile ctfile.com Shares | ✅ direkter Link (Passcode; In-App-WebView löst CAPTCHA) | ✅ Multi-Thread + Ordner-Stapel |
 | Torrent | Magnet / .torrent | ✅ | ✅ BT-Engine (DHT) |
 | Cloud | Lanzou Cloud (Einzeldatei direkt; Ordner-Stapel) | ✅ Direktlink | ✅ In-App-WebView-Assistenz |
-| Cloud | Aliyun Drive · Baidu Netdisk · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |
+| Cloud | Baidu Netdisk pan.baidu.com Shares | ✅ Passcode-Prüfung + Struktur (anonym); Transfer → Direktlink (In-App-Login) | ✅ Multithread + Ein-Klick-Stapel (Login) |
+| Cloud | Aliyun Drive · CSDN | ✅ Struktur | ⚠️ Plattform-Sperren |
 
 ## ✨ Funktionen
 ## ✨ Funktionen
 
 - 🚀 **Multi-Connection-Beschleunigung** — Dateien werden in 8-MiB-Chunks aufgeteilt und mit bis zu **64 parallelen Verbindungen** geladen. Dramatisch schneller bei gedrosselten Servern.
 - 🔀 **Multi-Source-Aggregation** — zusätzliche Mirror-URLs für dieselbe Datei einfügen; Chunks rotieren über CDNs und die Durchsätze addieren sich.
-- 📺 **Site-Extraktion (21+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares — direkt + Ordner-Stapel, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM), UC Netdisk (drive.uc.cn / fast.uc.cn Shares — anonyme API-Kette mit Sitzungs-Cookie + Ordner-Stapel), Wenshushu (wenshushu.cn / c.wss.ink Shares — anonyme Token-Kette), Feijipan (share.feijipan.com / feijix.com Shares — AES-Signatur nativ + Ordner-Stapel), CTFile (ctfile.com Shares — Passcode, In-App-WebView löst CAPTCHA); Cloud-Drive-/CSDN-Shares werden ehrlich aufgelistet.
+- 📺 **Site-Extraktion (22+ Plattformen)** — Bilibili (Video / Sammlung / Serie / Bangumi mit Stapel-Download), Douyin (ohne WM), Kuaishou, Xiaohongshu, Weibo, Twitter/X, NetEase Cloud Music (freie Songs direkt + Playlist-Stapel), 82DJ, Lanzou Cloud (Ordner-Stapel), GitHub Releases, Internet Archive (Public-Domain-Medien), Bandcamp (Album-Stapel-Download), Pixiv (Einzeln / Multi-Page p0 / Ugoira-Frame-ZIP), GoFile (gofile.io/d/-Shares — direkt + Ordner-Stapel, Sitzungs-Cookie automatisch), TikTok (Videoseiten, ohne WM), UC Netdisk (drive.uc.cn / fast.uc.cn Shares — anonyme API-Kette mit Sitzungs-Cookie + Ordner-Stapel), Wenshushu (wenshushu.cn / c.wss.ink Shares — anonyme Token-Kette), Feijipan (share.feijipan.com / feijix.com Shares — AES-Signatur nativ + Ordner-Stapel), CTFile (ctfile.com Shares — Passcode, In-App-WebView löst CAPTCHA), Baidu Netdisk (pan.baidu.com Shares — Passcode-Erkennung + anonyme Strukturauflistung; In-App-Login ermöglicht Transfer-Direktdownload + Ein-Klick-Stapel); Aliyun-Drive-/CSDN-Shares werden ehrlich aufgelistet.
 - 🧲 **BitTorrent** — Magnet-Links & .torrent-Dateien dank librqbit (DHT + Tracker).
 - ⏸️ **Pause / Fortsetzen / Neustart-sicher** — der Chunk-Fortschritt liegt in Echtzeit auf der Festplatte; unterbrochene Downloads setzen exakt am letzten Byte fort. Optionales **Auto-Resume beim Start**.
 - 🔍 **Intelligente Erkennung** — Dateiname, Größe und Range-Unterstützung werden automatisch erkannt; Server ohne Byte-Range-Support weichen elegant auf eine einzelne Verbindung aus.
