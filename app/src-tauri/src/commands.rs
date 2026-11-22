@@ -84,6 +84,41 @@ pub async fn add_uc_batch(
         .await
 }
 
+/// 百度网盘分享一键批量（登录态 dlink 直链）：扁平清单逐文件建任务
+#[tauri::command]
+pub async fn add_baidu_batch(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_baidu_batch(url, dir, connections)
+        .await
+}
+
+/// 百度网盘登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘
+#[tauri::command]
+pub async fn baidu_login(app: AppHandle) -> Result<String, String> {
+    let session = crate::downloader::baidu_login::login_collect(app).await?;
+    crate::downloader::baidu_login::save_session(&session)?;
+    Ok("登录成功".into())
+}
+
+/// 百度网盘退出登录：删除本地会话
+#[tauri::command]
+pub async fn baidu_logout() -> Result<(), String> {
+    crate::downloader::baidu_login::clear_session();
+    Ok(())
+}
+
+/// 百度网盘登录状态（设置页展示）
+#[tauri::command]
+pub fn baidu_login_status() -> crate::downloader::baidu_login::BaiduLoginStatus {
+    crate::downloader::baidu_login::login_status()
+}
+
 #[tauri::command]
 pub async fn add_gofile_batch(
     state: State<'_, TaskManager>,

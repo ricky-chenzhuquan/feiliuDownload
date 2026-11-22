@@ -8,6 +8,7 @@ import {
   addLanzouFolder,
   addGofileBatch,
   addUcBatch,
+  addBaiduBatch,
   addCtBatch,
   getSettings,
   isMobile,
@@ -177,13 +178,15 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
               ? addGofileBatch(probe.url, dir.trim() || undefined, connections)
               : kind === "uc_share"
                 ? addUcBatch(probe.url, dir.trim() || undefined, connections)
-                : kind === "ct_share"
-                  ? addCtBatch(probe.url, dir.trim() || undefined, connections)
-                  : kind === "bandcamp_album"
-                ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
-              : kind === "bilibili_bangumi"
-                ? addBilibiliBangumi(probe.url, dir.trim() || undefined, connections)
-                : addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
+                : kind === "baidu_share"
+                  ? addBaiduBatch(probe.url, dir.trim() || undefined, connections)
+                  : kind === "ct_share"
+                    ? addCtBatch(probe.url, dir.trim() || undefined, connections)
+                    : kind === "bandcamp_album"
+                  ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)
+                : kind === "bilibili_bangumi"
+                  ? addBilibiliBangumi(probe.url, dir.trim() || undefined, connections)
+                  : addNeteasePlaylist(probe.url, dir.trim() || undefined, connections);
       const r = await invokeBatch;
       const unit =
       kind === "netease_playlist" || kind === "bandcamp_album" ? "首" : "个";

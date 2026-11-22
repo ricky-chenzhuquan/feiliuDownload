@@ -157,6 +157,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             referer: Some(CT_REFERER.into()),
             notice: None,
             cookies: None,
+            user_agent: None,
             webview_plan: Some(WebviewExtractPlan {
                 url: plan_url,
                 visible: true,
@@ -175,6 +176,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some(CT_REFERER.into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: Some(WebviewExtractPlan {
             url: plan_url,
             visible: true,

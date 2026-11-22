@@ -168,6 +168,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
                 referer: Some(DL_REFERER.into()),
                 notice: Some(format!("小飞机盘分享无法访问（可能已过期/提取码错误）：{e}")),
                 cookies: None,
+                user_agent: None,
                 webview_plan: None,
             });
         }
@@ -194,6 +195,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
                 "小飞机盘分享仅含文件夹，当前版本只支持单文件分享的直链下载；请分享具体文件链接".into(),
             ),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -246,6 +248,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
         referer: Some(DL_REFERER.into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     })
 }

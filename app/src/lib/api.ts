@@ -42,6 +42,7 @@ export interface ProbeResult {
     | "lanzou_folder"
     | "gofile_share"
     | "uc_share"
+    | "baidu_share"
     | "ct_share"
     | "bandcamp_album"
     | "bilibili_bangumi"
@@ -116,6 +117,26 @@ export const addUcBatch = (
   dir?: string,
   connections?: number,
 ) => invoke<BatchSummary>("add_uc_batch", { url, dir, connections });
+
+export const addBaiduBatch = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_baidu_batch", { url, dir, connections });
+
+// ---------- 百度网盘登录态（WebView 收割 BDUSS 会话） ----------
+
+export interface BaiduLoginStatus {
+  logged_in: boolean;
+  saved_at: number | null;
+}
+
+export const baiduLoginStatus = () =>
+  invoke<BaiduLoginStatus>("baidu_login_status");
+
+export const baiduLogin = () => invoke<string>("baidu_login");
+
+export const baiduLogout = () => invoke<void>("baidu_logout");
 
 export const addCtBatch = (
   url: string,

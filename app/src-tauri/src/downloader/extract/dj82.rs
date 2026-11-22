@@ -62,6 +62,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some("https://www.82dj.com/".into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: Some(plan),
     })
 }

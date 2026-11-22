@@ -270,6 +270,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
                 referer: Some(DL_REFERER.into()),
                 notice: Some(format!("UC 网盘分享解析失败：{e}")),
                 cookies: None,
+                user_agent: None,
                 webview_plan: None,
             });
         }
@@ -290,6 +291,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
                     "UC 网盘分享仅含文件夹（或空文件），可点击「一键添加」批量下载其中的文件".into(),
                 ),
                 cookies: None,
+                user_agent: None,
                 webview_plan: None,
             });
         }
@@ -330,6 +332,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
         referer: Some(DL_REFERER.into()),
         notice: None,
         cookies: cookie,
+        user_agent: None,
         webview_plan: None,
     })
 }

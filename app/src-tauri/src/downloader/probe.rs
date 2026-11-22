@@ -70,6 +70,8 @@ pub struct ProbeInfo {
     pub notice: Option<String>,
     /// 站点解析透传的会话 cookie（UC 网盘 __pugs 等：随直链探测与下载）
     pub cookies: Option<String>,
+    /// 站点要求的 User-Agent（百度网盘 dlink 强制 netdisk UA）
+    pub user_agent: Option<String>,
     /// WebView 代取计划（透传自 extract 层）
     pub webview_plan: Option<crate::downloader::extract::WebviewExtractPlan>,
 }
@@ -99,12 +101,14 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
     let mut last_err: Option<String> = None;
     // 解析器透传的会话 cookie：直链探测必须带上才有真实大小（UC __pugs 缺失=403）
     let ex_cookies = extracted.as_ref().and_then(|e| e.cookies.clone());
+    // 解析器要求的 User-Agent（百度网盘 dlink 强制 netdisk UA）
+    let ex_ua = extracted.as_ref().and_then(|e| e.user_agent.clone());
     for _attempt in 0..3 {
         let mut info = {
             // 诊断日志：探测失败时输出真实原因（状态码/网络错误）
             let ref_opt = site_referer.as_deref();
-            let r = range_probe_detail(client, target, ref_opt, ex_cookies.as_deref()).await;
-            let h = head_probe_detail(client, target, ref_opt, ex_cookies.as_deref()).await;
+            let r = range_probe_detail(client, target, ref_opt, ex_cookies.as_deref(), ex_ua.as_deref()).await;
+            let h = head_probe_detail(client, target, ref_opt, ex_cookies.as_deref(), ex_ua.as_deref()).await;
             match (r, h) {
                 (Some(i), _) => i,
                 (None, Some(i)) => i,
@@ -129,6 +133,7 @@ pub async fn probe(client: &Client, url: &str) -> Result<ProbeInfo, String> {
             info.referer = ex.referer.clone();
         info.notice = ex.notice.clone();
         info.cookies = ex.cookies.clone();
+        info.user_agent = ex.user_agent.clone();
         info.webview_plan = ex.webview_plan.clone();
         }
         // 站点限制提示（歌单/网盘）→ 作为正常结果返回，由上层决定批量/拒绝
@@ -165,12 +170,13 @@ pub async fn probe_direct_ref(
     url: &str,
     referer: Option<&str>,
     cookies: Option<&str>,
+    user_agent: Option<&str>,
 ) -> Option<ProbeInfo> {
     for _attempt in 0..2 {
-        if let Some(i) = range_probe_detail(client, url, referer, cookies).await {
+        if let Some(i) = range_probe_detail(client, url, referer, cookies, user_agent).await {
             return Some(i);
         }
-        if let Some(i) = head_probe_detail(client, url, referer, cookies).await {
+        if let Some(i) = head_probe_detail(client, url, referer, cookies, user_agent).await {
             return Some(i);
         }
         tokio::time::sleep(std::time::Duration::from_millis(700)).await;
@@ -185,6 +191,7 @@ pub async fn head_probe_detail(
     url: &str,
     referer: Option<&str>,
     cookies: Option<&str>,
+    user_agent: Option<&str>,
 ) -> Option<ProbeInfo> {
     let mut req = client.head(url);
     if let Some(r) = referer {
@@ -193,6 +200,10 @@ pub async fn head_probe_detail(
     // 会话 cookie 透传（GoFile 直链无 cookie 302，探测拿不到大小）
     if let Some(c) = cookies {
         req = req.header(reqwest::header::COOKIE, c);
+    }
+    // 站点要求的 UA（百度网盘 dlink 强制 netdisk UA）
+    if let Some(ua) = user_agent {
+        req = req.header(reqwest::header::USER_AGENT, ua);
     }
     let resp = match req.send().await {
         Ok(r) => {
@@ -238,6 +249,7 @@ pub async fn range_probe_detail(
     url: &str,
     referer: Option<&str>,
     cookies: Option<&str>,
+    user_agent: Option<&str>,
 ) -> Option<ProbeInfo> {
     let mut req = client
         .get(url)
@@ -248,6 +260,10 @@ pub async fn range_probe_detail(
     // 会话 cookie 透传（同 head）
     if let Some(c) = cookies {
         req = req.header(reqwest::header::COOKIE, c);
+    }
+    // 站点要求的 UA（同 head）
+    if let Some(ua) = user_agent {
+        req = req.header(reqwest::header::USER_AGENT, ua);
     }
     let resp = match req.send().await
     {
@@ -403,6 +419,7 @@ mod tests {
             "https://proof.ovh.net/files/10Mb.dat",
             Some("https://www.82dj.com/"),
             None,
+            None,
         )
         .await
         .expect("直链二次探测失败");
@@ -470,7 +487,7 @@ mod tests {
         });
         let client = client();
         let url = format!("http://{addr}/f.txt");
-        let info = probe_direct_ref(&client, &url, Some("https://gofile.io/"), Some("accountToken=abc; x=1"))
+        let info = probe_direct_ref(&client, &url, Some("https://gofile.io/"), Some("accountToken=abc; x=1"), None)
             .await
             .expect("带 cookie 探测应成功");
         server.await.unwrap();

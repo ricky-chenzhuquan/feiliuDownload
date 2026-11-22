@@ -90,6 +90,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some(GOFILE_REFERER.into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: Some(WebviewExtractPlan {
             url: plan_url,
             visible: false,

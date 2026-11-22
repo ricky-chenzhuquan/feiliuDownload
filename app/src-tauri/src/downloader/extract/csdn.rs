@@ -95,6 +95,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             "CSDN 下载中心资源：已解析资源信息{price_note}，但下载必须登录 CSDN 账号（VIP 或积分兑换），直链由服务端登录态生成（平台限制）"
         )),
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     })
 }

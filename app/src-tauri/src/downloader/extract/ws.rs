@@ -106,6 +106,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
                 referer: None,
                 notice: Some(format!("文叔叔分享无法访问（可能已过期/提取码错误）：{e}")),
                 cookies: None,
+                user_agent: None,
                 webview_plan: None,
             });
         }
@@ -162,6 +163,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
             referer: None,
             notice: Some("文叔叔文件已失效（直链为空）".into()),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -172,6 +174,7 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
         referer: None,
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     })
 }

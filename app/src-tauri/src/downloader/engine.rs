@@ -95,6 +95,9 @@ pub struct TaskMeta {
     /// WebView 代取带出的会话 cookie（GoFile 等 CDN 校验会话级凭据的站点；
     /// 不持久化——会话作用域，重启后靠 source_url 重解析重取）
     cookies: Option<String>,
+    /// 站点要求的 User-Agent（百度网盘 dlink 强制 netdisk UA；静态站点
+    /// 属性，随任务持久化，重解析不变）
+    user_agent: Option<String>,
     /// 解析类任务的原始分享页 URL（直链有时效——82dj 分钟级、B 站数小时——
     /// 下载 404/403 时据此自动重新解析拿新直链）
     source_url: Option<String>,
@@ -251,6 +254,7 @@ impl Inner {
                     // 会话 cookie 不持久化：恢复后直链若因凭据失效被拒，
                     // source_url 重解析会重新走 WebView 代取取回
                     cookies: None,
+                    user_agent: p.user_agent,
                     source_url: p.source_url,
                     canonical: p.canonical,
                     filename: p.filename,
@@ -300,6 +304,7 @@ impl Inner {
                         url: meta.url.clone(),
                         mirrors: meta.mirrors.clone(),
                         referer: meta.referer.clone(),
+                        user_agent: meta.user_agent.clone(),
                         source_url: meta.source_url.clone(),
                         canonical: meta.canonical.clone(),
                         kind: meta.kind,
@@ -447,6 +452,9 @@ impl Inner {
         } else if lower.contains("uc.cn") && lower.contains("/s/") {
             // UC 网盘：单文件可普通添加、多文件/文件夹可批量（序号 URL 逐个建任务）
             Some("uc_share".to_string())
+        } else if lower.contains("pan.baidu.com") && lower.contains("/s/1") {
+            // 百度网盘：登录态下批量直链；未登录时点批量给诚实引导（命令内拦截）
+            Some("baidu_share".to_string())
         } else if lower.contains("ctfile.com") && (lower.contains("/f/") || lower.contains("/d/")) {
             // 城通网盘：/f/ 单文件批量=1 任务无害；/d/ 文件夹批量（轮27 UA 伪装复活）
             Some("ct_share".to_string())
@@ -669,6 +677,41 @@ impl Inner {
         })
     }
 
+    /// 百度网盘分享一键批量（登录态）：原生扁平清单 → 逐个 feiliu_i 序号建任务
+    /// （dlink 直链 + 会话 cookie + netdisk UA；会话必须已登录）
+    pub async fn add_baidu_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        if crate::downloader::baidu_login::load_session().is_none() {
+            return Err("百度网盘批量下载需要登录：请先在「设置 → 百度网盘」登录自己的账号".into());
+        }
+        let (name, urls) = crate::downloader::extract::baidu::folder_file_urls(&url)
+            .await
+            .ok_or("百度网盘分享清单解析失败")?;
+        let cap = (self.settings().batch_limit as usize).max(1).min(urls.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for u in &urls[..cap] {
+            match self
+                .add_task(u.clone(), vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 限流/风控/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: urls.len() as u32,
+            added,
+            skipped,
+            truncated: urls.len() > cap,
+        })
+    }
+
     /// 城通网盘文件夹一键批量：WebView 代取单会话状态机（收割 t- 链→逐文件
     /// 捕获直链）→ files 数组直链直接建任务（免重解析，downurl 短时效即建即下）
     pub async fn add_ct_batch(
@@ -858,6 +901,7 @@ impl Inner {
                     &dl_url,
                     info.referer.as_deref(),
                     wv_cookie.as_deref(),
+                    info.user_agent.as_deref(),
                 )
                 .await
             {
@@ -918,6 +962,8 @@ impl Inner {
                 referer: info.referer.clone(),
                 // WebView 代取站点带出的会话 cookie（GoFile 等）
                 cookies: wv_cookie.clone(),
+                // 站点要求的 UA（百度网盘 dlink 强制 netdisk）
+                user_agent: info.user_agent.clone(),
                 // 直链 ≠ 分享页（解析/代取类站点）时记录原始页，供直链过期重解析
                 source_url: if dl_url != url { Some(url.clone()) } else { None },
                 canonical: canonical_key,
@@ -986,6 +1032,7 @@ impl Inner {
                 mirrors: Vec::new(),
                 referer: None,
                 cookies: None,
+                user_agent: None,
                 source_url: None,
                 canonical: None,
                 filename: "磁力任务（等待元数据…）".into(),
@@ -1375,6 +1422,7 @@ async fn run_task(inner: Arc<Inner>, id: String, shared: Arc<TaskShared>) {
             &meta.url,
             meta.referer.as_deref(),
             meta.cookies.as_deref(),
+            meta.user_agent.as_deref(),
         )
         .await
         {
@@ -1642,7 +1690,10 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
         if info.referer.is_some() {
             m.referer = info.referer.clone();
         }
-        m.cookies = new_cookie.clone();
+        m.cookies = new_cookie.clone().or_else(|| info.cookies.clone());
+        if info.user_agent.is_some() {
+            m.user_agent = info.user_agent.clone();
+        }
         (m.url.clone(), referer_new)
     };
     // 新直链二次探测拿真实大小/断点（best-effort，失败沿用旧值）
@@ -1652,6 +1703,7 @@ async fn re_rescue_link(inner: &Inner, shared: &Arc<TaskShared>) -> bool {
             &url_new,
             referer_new.as_deref(),
             new_cookie.as_deref(),
+            info.user_agent.as_deref(),
         )
         .await
     {
@@ -1855,8 +1907,13 @@ async fn download_chunk(
                 None => req,
             };
             // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
-            match m.cookies.clone() {
+            let req = match m.cookies.clone() {
                 Some(c) => req.header(reqwest::header::COOKIE, c),
+                None => req,
+            };
+            // 站点要求的 UA（百度网盘 dlink 强制 netdisk）
+            match m.user_agent.clone() {
+                Some(ua) => req.header(reqwest::header::USER_AGENT, ua),
                 None => req,
             }
         };
@@ -1910,9 +1967,9 @@ async fn download_single(
         {
             return Err(Flow::Interrupted);
         }
-        let (referer, cookies) = {
+        let (referer, cookies, user_agent) = {
             let m = shared.meta.read().unwrap();
-            (m.referer.clone(), m.cookies.clone())
+            (m.referer.clone(), m.cookies.clone(), m.user_agent.clone())
         };
         let req = client.get(url);
         let req = match referer {
@@ -1922,6 +1979,11 @@ async fn download_single(
         // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
         let req = match cookies {
             Some(c) => req.header(reqwest::header::COOKIE, c),
+            None => req,
+        };
+        // 站点要求的 UA（百度网盘 dlink 强制 netdisk）
+        let req = match user_agent {
+            Some(ua) => req.header(reqwest::header::USER_AGENT, ua),
             None => req,
         };
         match req.send().await {
@@ -2386,6 +2448,7 @@ mod tests {
                 mirrors: vec![],
                 referer: None,
                 cookies: None,
+                user_agent: None,
                 source_url: None,
                 canonical: None,
                 filename: "test.mp4".into(),
@@ -2464,6 +2527,7 @@ mod tests {
                     mirrors: vec![],
                     referer: Some("https://gofile.io/".into()),
                     cookies,
+                    user_agent: None,
                     source_url: None,
                     canonical: None,
                     filename: "f.txt".into(),
@@ -2518,6 +2582,100 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// User-Agent 透传回归（百度网盘 dlink 强制 netdisk UA，普通 UA 403）：
+    /// 本地 HTTP 服务器捕获请求头——meta.user_agent → User-Agent 进请求；
+    /// None 时不得发 netdisk（客户端默认 UA，老站点零污染）。
+    #[tokio::test]
+    async fn test_user_agent_header_passthrough() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let captured: Arc<std::sync::Mutex<Vec<Vec<String>>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let cap_clone = captured.clone();
+        let server = tokio::task::spawn_blocking(move || {
+            for _ in 0..2 {
+                let Ok((mut s, _)) = listener.accept() else { break };
+                let mut buf = [0u8; 8192];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let headers: Vec<String> = req.lines().take(12).map(str::to_string).collect();
+                cap_clone.lock().unwrap().push(headers);
+                let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
+            }
+        });
+
+        let dir = std::env::temp_dir().join(format!("feiliu_ua_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mk = |user_agent: Option<String>| {
+            Arc::new(TaskShared {
+                id: "ua-test".into(),
+                meta: RwLock::new(TaskMeta {
+                    url: format!("http://{addr}/f.txt"),
+                    kind: TaskKind::Http,
+                    info_hash: None,
+                    mirrors: vec![],
+                    referer: None,
+                    cookies: None,
+                    user_agent,
+                    source_url: None,
+                    canonical: None,
+                    filename: "f.txt".into(),
+                    save_path: dir.join("out.txt").to_string_lossy().into_owned(),
+                    total_size: 5,
+                    accept_ranges: false,
+                    etag: None,
+                    last_modified: None,
+                    connections: 1,
+                    created_at: now_ms(),
+                }),
+                status: RwLock::new(TaskStatus::Downloading),
+                error: RwLock::new(None),
+                downloaded: AtomicU64::new(0),
+                speed_bps: RwLock::new(0.0),
+                eta_secs: RwLock::new(None),
+                active_conns: AtomicU32::new(0),
+                pause_flag: AtomicBool::new(false),
+                cancel_flag: AtomicBool::new(false),
+                error_flag: AtomicBool::new(false),
+                removed: AtomicBool::new(false),
+                re_rescued: AtomicBool::new(false),
+                interrupt: tokio::sync::Notify::new(),
+            })
+        };
+
+        let client = reqwest::Client::new();
+        let url = format!("http://{addr}/f.txt");
+        let p1 = dir.join("part_000000");
+        download_single(&client, &url, &p1, &mk(Some("netdisk".into())))
+            .await
+            .unwrap();
+        let p2 = dir.join("part_000001");
+        download_single(&client, &url, &p2, &mk(None)).await.unwrap();
+        server.await.unwrap();
+
+        let caps = captured.lock().unwrap();
+        assert_eq!(caps.len(), 2, "应捕获 2 次请求: {}", caps.len());
+        let ua_of = |hs: &[String]| {
+            hs.iter()
+                .find(|l| l.to_lowercase().starts_with("user-agent:"))
+                .map(|l| l.to_lowercase())
+        };
+        assert!(
+            ua_of(&caps[0]).map_or(false, |u| u.contains("netdisk")),
+            "netdisk UA 应透传: {:?}",
+            caps[0]
+        );
+        assert!(
+            ua_of(&caps[1]).map_or(true, |u| !u.contains("netdisk")),
+            "None UA 不得发 netdisk（客户端默认）: {:?}",
+            caps[1]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// 多源（镜像）验证：同一文件在两个不同主机上各拉一个分片，
     /// 验证大小一致后合并。kernel.org 主站 + 镜像站，路径永久有效。
     #[tokio::test]
@@ -2528,8 +2686,8 @@ mod tests {
         let client = probe::client();
         let p1 = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
         let p2 = "https://mirrors.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz";
-        let i1 = probe::range_probe_detail(&client, p1, None, None).await.expect("主站探测失败");
-        let i2 = probe::range_probe_detail(&client, p2, None, None).await.expect("镜像探测失败");
+        let i1 = probe::range_probe_detail(&client, p1, None, None, None).await.expect("主站探测失败");
+        let i2 = probe::range_probe_detail(&client, p2, None, None, None).await.expect("镜像探测失败");
         let t1 = i1.total_size.expect("主站无大小");
         let t2 = i2.total_size.expect("镜像无大小");
         assert_eq!(t1, t2, "两源大小不一致");
@@ -2545,6 +2703,7 @@ mod tests {
                 mirrors: vec![p2.into()],
                 referer: None,
                 cookies: None,
+                user_agent: None,
                 source_url: None,
                 canonical: None,
                 kind: TaskKind::Http,
@@ -2675,8 +2834,8 @@ mod tests {
             Err(e) => println!("probe Err: {e}"),
         }
         // 探测子步骤独立复现
-        println!("range_probe: {:?}", probe::range_probe_detail(&client, url, None, None).await.is_some());
-        println!("head_probe: {:?}", probe::head_probe_detail(&client, url, None, None).await.is_some());
+        println!("range_probe: {:?}", probe::range_probe_detail(&client, url, None, None, None).await.is_some());
+        println!("head_probe: {:?}", probe::head_probe_detail(&client, url, None, None, None).await.is_some());
     }
 
     /// 网页/登录页链接 → 明确报错而非下载垃圾文件

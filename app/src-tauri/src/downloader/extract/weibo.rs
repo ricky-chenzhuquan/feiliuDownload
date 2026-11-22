@@ -82,6 +82,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some(WB_REFERER.into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: Some(WebviewExtractPlan {
             url: target,
             visible: false,

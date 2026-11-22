@@ -123,6 +123,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: None,
         notice: None,
             cookies: None,
+            user_agent: None,
             webview_plan: None,
     })
 }

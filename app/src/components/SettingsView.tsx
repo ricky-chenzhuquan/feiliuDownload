@@ -7,6 +7,10 @@ import {
   pickFolder,
   setSettings,
   installUpdate,
+  baiduLogin,
+  baiduLoginStatus,
+  baiduLogout,
+  type BaiduLoginStatus,
   type Settings,
   type UpdateInfo,
 } from "../lib/api";
@@ -31,6 +35,10 @@ export default function SettingsView({ onLoaded }: Props) {
     "idle" | "checking" | UpdateInfo | "error"
   >("idle");
   const [installing, setInstalling] = useState(false);
+  // 百度网盘登录态
+  const [baiduStatus, setBaiduStatus] = useState<BaiduLoginStatus | null>(null);
+  const [baiduBusy, setBaiduBusy] = useState(false);
+  const [baiduMsg, setBaiduMsg] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -38,7 +46,37 @@ export default function SettingsView({ onLoaded }: Props) {
       onLoaded?.(s);
     });
     isMobile().then(setMobile);
+    baiduLoginStatus().then(setBaiduStatus).catch(() => {});
   }, []);
+
+  const refreshBaidu = () => {
+    baiduLoginStatus().then(setBaiduStatus).catch(() => {});
+  };
+
+  const baiduLoginAction = async () => {
+    setBaiduBusy(true);
+    setBaiduMsg(null);
+    try {
+      const msg = await baiduLogin();
+      setBaiduMsg(msg);
+      refreshBaidu();
+    } catch (e) {
+      setBaiduMsg(String(e));
+    } finally {
+      setBaiduBusy(false);
+    }
+  };
+
+  const baiduLogoutAction = async () => {
+    setBaiduBusy(true);
+    try {
+      await baiduLogout();
+      setBaiduMsg(null);
+      refreshBaidu();
+    } finally {
+      setBaiduBusy(false);
+    }
+  };
 
   if (!settings) return <div className="page-loading">加载中…</div>;
 
@@ -248,6 +286,43 @@ export default function SettingsView({ onLoaded }: Props) {
         <div className="update-row">{renderUpdate()}</div>
         <p className="dim-note">
           应用会自动检查新版本（GitHub Releases 发布通道），更新包经签名校验后安装。
+        </p>
+      </div>
+
+      <div className="settings-card">
+        <h3>百度网盘登录</h3>
+        {baiduStatus?.logged_in ? (
+          <div className="update-row">
+            <span className="upd-ok">
+              已登录 ✓（{baiduStatus.saved_at
+                ? new Date(baiduStatus.saved_at).toLocaleString()
+                : "会话有效"}
+              ）
+            </span>
+            <button
+              className="btn ghost"
+              onClick={baiduLogoutAction}
+              disabled={baiduBusy}
+            >
+              退出登录
+            </button>
+          </div>
+        ) : (
+          <div className="update-row">
+            <span className="dim">未登录</span>
+            <button
+              className="btn primary"
+              onClick={baiduLoginAction}
+              disabled={baiduBusy}
+            >
+              {baiduBusy ? "等待登录…" : "登录百度网盘"}
+            </button>
+          </div>
+        )}
+        {baiduMsg && <p className="dim-note">{baiduMsg}</p>}
+        <p className="dim-note">
+          登录后即可用你自己的账号直接下载百度网盘分享内容（提取码自动识别）。
+          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
         </p>
       </div>
 

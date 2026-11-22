@@ -115,6 +115,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             referer: None,
             notice: None,
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -146,6 +147,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             "Internet Archive：条目「{title}」含 {total} 个文件但无可直接下载的音视频{sample_note}。文件直链公开（https://archive.org/download/{id}/文件名），粘贴具体文件链接即可下载",
         )),
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     })
 }

@@ -135,6 +135,9 @@ pub struct PersistedTask {
     pub mirrors: Vec<String>,
     #[serde(default)]
     pub referer: Option<String>,
+    /// 站点要求的 User-Agent（百度网盘 dlink 强制 netdisk UA）
+    #[serde(default)]
+    pub user_agent: Option<String>,
     /// 解析类任务的原始分享页 URL（直链有时效，404/403 时据此重解析）
     #[serde(default)]
     pub source_url: Option<String>,

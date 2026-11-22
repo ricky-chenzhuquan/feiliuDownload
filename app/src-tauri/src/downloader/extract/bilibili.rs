@@ -223,6 +223,7 @@ async fn resolve_collection(http: &reqwest::Client, url: &str) -> Option<super::
                 resp.code
             )),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -235,6 +236,7 @@ async fn resolve_collection(http: &reqwest::Client, url: &str) -> Option<super::
             referer: None,
             notice: Some("B站合集：该合集下没有可见视频".into()),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -261,6 +263,7 @@ async fn resolve_series(http: &reqwest::Client, url: &str) -> Option<super::Extr
                 resp.code
             )),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -273,6 +276,7 @@ async fn resolve_series(http: &reqwest::Client, url: &str) -> Option<super::Extr
             referer: None,
             notice: Some("B站系列：该系列下没有可见视频".into()),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -309,6 +313,7 @@ fn collection_extracted(
             "B站合集/系列：可一键批量添加视频（自动逐个解析直链建任务；单次上限可在设置中调整，防直链过期默认 30）".into(),
         ),
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     }
 }
@@ -397,6 +402,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
                 view.code
             )),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -447,6 +453,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some("https://www.bilibili.com/".into()),
         notice: None,
             cookies: None,
+            user_agent: None,
             webview_plan: None,
     })
 }

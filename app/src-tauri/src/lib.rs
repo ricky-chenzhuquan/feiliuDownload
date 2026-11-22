@@ -51,9 +51,13 @@ pub fn run() {
             commands::add_lanzou_folder,
             commands::add_gofile_batch,
             commands::add_uc_batch,
+            commands::add_baidu_batch,
             commands::add_ct_batch,
             commands::add_bandcamp_album,
             commands::add_bilibili_bangumi,
+            commands::baidu_login,
+            commands::baidu_logout,
+            commands::baidu_login_status,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,
@@ -75,6 +79,7 @@ pub fn run() {
         ])
         .setup(|app| {
             set_app_handle(app.handle().clone());
+            downloader::baidu_login::init(app.handle());
             let mgr = app.state::<TaskManager>();
             mgr.inner.set_app(app.handle().clone());
 

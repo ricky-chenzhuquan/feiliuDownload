@@ -106,6 +106,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             referer: Some(PIXIV_REFERER.into()),
             notice: Some("pixiv 动图为帧序列 zip（非视频），解压后可拼接".into()),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -131,6 +132,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
             referer: Some(PIXIV_REFERER.into()),
             notice: Some(format!("pixiv 多图作品共 {count} 页：本次取第 1 页，其余页面请在官网查看")),
             cookies: None,
+            user_agent: None,
             webview_plan: None,
         });
     }
@@ -149,6 +151,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         referer: Some(PIXIV_REFERER.into()),
         notice: None,
         cookies: None,
+        user_agent: None,
         webview_plan: None,
     })
 }

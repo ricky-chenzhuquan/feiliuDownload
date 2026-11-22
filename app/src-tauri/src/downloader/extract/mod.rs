@@ -22,7 +22,7 @@
 mod alipan;
 mod archive;
 pub mod bandcamp;
-mod baidu;
+pub mod baidu;
 mod csdn;
 mod dj82;
 pub mod bangumi;
@@ -222,6 +222,8 @@ pub struct Extracted {
     pub notice: Option<String>,
     /// 会话 cookie（UC 网盘等：API 流程下发的 __pugs 必须随下载请求才 206）
     pub cookies: Option<String>,
+    /// 站点要求的 User-Agent（百度网盘 dlink 强制 netdisk UA，普通 UA 403）
+    pub user_agent: Option<String>,
     /// 需要内嵌 WebView 代取直链的计划；engine.add_task 时执行
     pub webview_plan: Option<WebviewExtractPlan>,
 }
@@ -354,6 +356,33 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             return Some(match fi {
                 Some(i) => format!("uc:{code}:i{i}"),
                 None => format!("uc:{code}"),
+            });
+        }
+        return None;
+    }
+    // 百度网盘分享（surl + 批量序号；pwd 参数不影响身份）
+    if lower.contains("pan.baidu.com") && lower.contains("/s/1") {
+        let idx = lower.find("/s/1")? + "/s/1".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if code.len() >= 20 {
+            let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
+                let p = lower.find(m)?;
+                let digits: String = url[p + m.len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if digits.is_empty() {
+                    None
+                } else {
+                    Some(digits)
+                }
+            });
+            return Some(match fi {
+                Some(i) => format!("baidu:{code}:i{i}"),
+                None => format!("baidu:{code}"),
             });
         }
         return None;
@@ -605,8 +634,15 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     if lower.contains("alipan.com/s/") || lower.contains("aliyundrive.com/s/") {
         return alipan::resolve(url).await;
     }
-    // 百度网盘分享
+    // 百度网盘分享：登录态（baidu_login 会话）优先走 dlink 直链解析，
+    // 失败/未登录回落匿名链路（诚实提示）
     if lower.contains("pan.baidu.com/s/") {
+        #[cfg(desktop)]
+        if let Some(session) = crate::downloader::baidu_login::load_session() {
+            if let Some(e) = baidu::resolve_with_cookies(url, &session.cookies).await {
+                return Some(e);
+            }
+        }
         return baidu::resolve(url).await;
     }
     // CSDN 下载中心
