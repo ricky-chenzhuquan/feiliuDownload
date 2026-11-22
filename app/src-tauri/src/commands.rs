@@ -154,6 +154,27 @@ pub fn quark_login_status() -> crate::downloader::quark_login::QuarkLoginStatus 
     crate::downloader::quark_login::login_status()
 }
 
+/// 123 云盘登录：打开应用内 WebView 登录页，成功后收割 sso-token 会话落盘
+#[tauri::command]
+pub async fn pan123_login(app: AppHandle) -> Result<String, String> {
+    let session = crate::downloader::pan123_login::login_collect(app).await?;
+    crate::downloader::pan123_login::save_session(&session)?;
+    Ok("登录成功".into())
+}
+
+/// 123 云盘退出登录：删除本地会话
+#[tauri::command]
+pub async fn pan123_logout() -> Result<(), String> {
+    crate::downloader::pan123_login::clear_session();
+    Ok(())
+}
+
+/// 123 云盘登录状态（设置页展示）
+#[tauri::command]
+pub fn pan123_login_status() -> crate::downloader::pan123_login::PanLoginStatus {
+    crate::downloader::pan123_login::login_status()
+}
+
 #[tauri::command]
 pub async fn add_gofile_batch(
     state: State<'_, TaskManager>,
