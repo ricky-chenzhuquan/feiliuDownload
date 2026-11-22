@@ -39,6 +39,7 @@ mod pixiv;
 mod tiktok;
 mod twitter;
 pub mod ct;
+pub mod quark;
 pub mod fj;
 pub mod uc;
 pub mod ws;
@@ -644,6 +645,20 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
             }
         }
         return baidu::resolve(url).await;
+    }
+    // 夸克网盘分享：登录态（quark_login 会话）走转存直链，未登录走访客链路
+    // （≤10MiB 直下；超限诚实提示登录）
+    if lower.contains("pan.quark.cn/s/") {
+        #[cfg(desktop)]
+        if let Some(session) = crate::downloader::quark_login::load_session() {
+            if let Some(e) = quark::resolve_with_cookies(url, &session.cookies).await {
+                if !e.direct_url.is_empty() {
+                    return Some(e);
+                }
+                // 登录态转存失败（会话失效等）回落匿名链路给诚实提示
+            }
+        }
+        return quark::resolve(url).await;
     }
     // CSDN 下载中心
     if lower.contains("download.csdn.net") {
