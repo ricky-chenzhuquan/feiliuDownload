@@ -10,4 +10,6 @@ pub mod quark_login;
 #[cfg(desktop)]
 pub mod pan123_login;
 #[cfg(desktop)]
+pub mod ty189_login;
+#[cfg(desktop)]
 pub mod webview_extract;

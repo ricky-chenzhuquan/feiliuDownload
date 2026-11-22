@@ -66,6 +66,9 @@ pub fn run() {
             commands::pan123_login,
             commands::pan123_logout,
             commands::pan123_login_status,
+            commands::ty189_login,
+            commands::ty189_logout,
+            commands::ty189_login_status,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,
@@ -90,6 +93,7 @@ pub fn run() {
             downloader::baidu_login::init(app.handle());
             downloader::quark_login::init(app.handle());
             downloader::pan123_login::init(app.handle());
+            downloader::ty189_login::init(app.handle());
             let mgr = app.state::<TaskManager>();
             mgr.inner.set_app(app.handle().clone());
 

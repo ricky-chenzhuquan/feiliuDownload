@@ -189,6 +189,27 @@ pub fn pan123_login_status() -> crate::downloader::pan123_login::PanLoginStatus 
     crate::downloader::pan123_login::login_status()
 }
 
+/// 天翼云盘登录：打开应用内 WebView 登录页，成功后收割 COOKIE_SESSION 会话落盘
+#[tauri::command]
+pub async fn ty189_login(app: AppHandle) -> Result<String, String> {
+    let session = crate::downloader::ty189_login::login_collect(app).await?;
+    crate::downloader::ty189_login::save_session(&session)?;
+    Ok("登录成功".into())
+}
+
+/// 天翼云盘退出登录：删除本地会话
+#[tauri::command]
+pub async fn ty189_logout() -> Result<(), String> {
+    crate::downloader::ty189_login::clear_session();
+    Ok(())
+}
+
+/// 天翼云盘登录状态（设置页展示）
+#[tauri::command]
+pub fn ty189_login_status() -> crate::downloader::ty189_login::Ty189LoginStatus {
+    crate::downloader::ty189_login::login_status()
+}
+
 #[tauri::command]
 pub async fn add_gofile_batch(
     state: State<'_, TaskManager>,
