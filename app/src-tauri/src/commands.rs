@@ -119,6 +119,20 @@ pub fn baidu_login_status() -> crate::downloader::baidu_login::BaiduLoginStatus 
     crate::downloader::baidu_login::login_status()
 }
 
+/// 夸克网盘分享一键批量（登录态转存直链逐文件建任务）
+#[tauri::command]
+pub async fn add_quark_batch(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_quark_batch(url, dir, connections)
+        .await
+}
+
 /// 夸克网盘登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘
 #[tauri::command]
 pub async fn quark_login(app: AppHandle) -> Result<String, String> {

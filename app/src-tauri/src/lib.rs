@@ -58,6 +58,7 @@ pub fn run() {
             commands::baidu_login,
             commands::baidu_logout,
             commands::baidu_login_status,
+            commands::add_quark_batch,
             commands::quark_login,
             commands::quark_logout,
             commands::quark_login_status,

@@ -356,8 +356,27 @@ async fn resolve_inner(url: &str, session: Option<&str>) -> Option<super::Extrac
             });
         }
     };
-    // 单文件分享直接用；多文件取第一个（批量挂后续轮）
-    let f = &files[0];
+    // 单文件分享直接用；批量按 feiliu_i 序号选文件（gofile 同款防撞键）
+    let index: usize = url
+        .split("feiliu_i=")
+        .nth(1)
+        .and_then(|v| {
+            let digits: String = v.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse().ok()
+        })
+        .unwrap_or(0);
+    if index >= files.len() {
+        return Some(super::Extracted {
+            direct_url: String::new(),
+            filename: format!("夸克分享 {pwd_id}"),
+            referer: Some(REFERER.into()),
+            notice: Some(format!("序号 {index} 超出分享文件数（共 {} 个）", files.len())),
+            cookies: None,
+            user_agent: None,
+            webview_plan: None,
+        });
+    }
+    let f = &files[index];
 
     // 登录态：转存链直下
     if login {
@@ -423,6 +442,20 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     resolve_inner(url, None).await
 }
 
+/// 批量清单：遍历分享树返回文件名+大小（engine add_quark_batch 数量来源）
+pub async fn list_files(url: &str) -> Result<Vec<(String, u64)>, String> {
+    let pwd_id = parse_share_url(url).ok_or("非夸克分享链接")?;
+    let passcode = url
+        .split("pwd=")
+        .nth(1)
+        .map(|p| p.trim_end_matches(['&', '#', '/']).to_string())
+        .unwrap_or_default();
+    let http = client(None).ok_or("HTTP 客户端初始化失败")?;
+    let stoken = get_stoken(&http, &pwd_id, &passcode).await?;
+    let files = walk_files(&http, &pwd_id, &stoken).await?;
+    Ok(files.into_iter().map(|f| (f.name, f.size)).collect())
+}
+
 /// 登录态解析（quark_login 会话，__pus 核心）
 pub async fn resolve_with_cookies(url: &str, session: &str) -> Option<super::Extracted> {
     resolve_inner(url, Some(session)).await
@@ -469,5 +502,22 @@ mod tests {
             info.notice
         );
         println!("quark OK: {} | {}", info.filename, info.notice.unwrap_or_default());
+    }
+
+    /// 真实链路（FEILIU_NET_TEST）：批量清单 = walk 遍历 8 个文件（d34c18e9d62a）
+    #[tokio::test]
+    async fn test_quark_list_files_real() {
+        if std::env::var("FEILIU_NET_TEST").is_err() {
+            return;
+        }
+        let files = list_files("https://pan.quark.cn/s/d34c18e9d62a")
+            .await
+            .expect("夸克清单解析失败");
+        assert_eq!(files.len(), 8, "应遍历出 8 个文件");
+        assert!(
+            files.iter().all(|(n, sz)| !n.is_empty() && *sz > 10_000_000),
+            "清单应含文件名与 >10MiB 大小"
+        );
+        println!("quark-list OK: {} 个文件", files.len());
     }
 }

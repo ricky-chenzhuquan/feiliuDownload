@@ -455,6 +455,9 @@ impl Inner {
         } else if lower.contains("pan.baidu.com") && lower.contains("/s/1") {
             // 百度网盘：登录态下批量直链；未登录时点批量给诚实引导（命令内拦截）
             Some("baidu_share".to_string())
+        } else if lower.contains("pan.quark.cn") && lower.contains("/s/") {
+            // 夸克网盘：登录态批量转存直链；未登录点批量给诚实引导（命令内拦截）
+            Some("quark_share".to_string())
         } else if lower.contains("ctfile.com") && (lower.contains("/f/") || lower.contains("/d/")) {
             // 城通网盘：/f/ 单文件批量=1 任务无害；/d/ 文件夹批量（轮27 UA 伪装复活）
             Some("ct_share".to_string())
@@ -756,6 +759,58 @@ impl Inner {
 
     /// GoFile 分享一键批量：WebView 代取列文件清单 → 逐个 feiliu_i 序号建任务
     /// （每个文件一次 WebView 代取，同蓝奏云文件夹模式；序号入 canonical 键防撞查重）
+    /// 夸克网盘分享一键批量（登录态）：walk 清单 → 逐个 feiliu_i 序号建任务
+    /// （登录态逐文件转存直链；匿名访客仅 ≤10MiB 可下，批量主路径=登录转存）
+    pub async fn add_quark_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        if crate::downloader::quark_login::load_session().is_none() {
+            return Err("夸克网盘批量下载需要登录：请先在「设置 → 夸克网盘」登录自己的账号".into());
+        }
+        let base = url
+            .split(['?', '&'])
+            .next()
+            .unwrap_or(&url)
+            .to_string();
+        let files = crate::downloader::extract::quark::list_files(&base)
+            .await
+            .map_err(|e| format!("夸克分享清单解析失败: {e}"))?;
+        if files.is_empty() {
+            return Err("分享内未解析出文件".into());
+        }
+        let name = files
+            .first()
+            .map(|(n, _)| n.rsplit('/').next().unwrap_or(n).to_string())
+            .unwrap_or_else(|| "夸克分享".into());
+        let cap = (self.settings().batch_limit as usize).max(1).min(files.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for i in 0..cap {
+            let task_url = if i == 0 {
+                base.clone()
+            } else {
+                format!("{base}?feiliu_i={i}")
+            };
+            match self
+                .add_task(task_url, vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 转存失败/限流/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: files.len() as u32,
+            added,
+            skipped,
+            truncated: files.len() > cap,
+        })
+    }
+
     pub async fn add_gofile_batch(
         self: &Arc<Self>,
         url: String,

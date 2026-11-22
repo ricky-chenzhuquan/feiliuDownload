@@ -9,6 +9,7 @@ import {
   addGofileBatch,
   addUcBatch,
   addBaiduBatch,
+  addQuarkBatch,
   addCtBatch,
   getSettings,
   isMobile,
@@ -180,7 +181,9 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                 ? addUcBatch(probe.url, dir.trim() || undefined, connections)
                 : kind === "baidu_share"
                   ? addBaiduBatch(probe.url, dir.trim() || undefined, connections)
-                  : kind === "ct_share"
+                  : kind === "quark_share"
+                    ? addQuarkBatch(probe.url, dir.trim() || undefined, connections)
+                    : kind === "ct_share"
                     ? addCtBatch(probe.url, dir.trim() || undefined, connections)
                     : kind === "bandcamp_album"
                   ? addBandcampAlbum(probe.url, dir.trim() || undefined, connections)

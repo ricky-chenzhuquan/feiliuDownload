@@ -130,6 +130,16 @@ mod canonical_tests {
         assert_eq!(canonical_key("https://gofile.io/uploadfile").await, None);
     }
 
+    /// 夸克分享：批量序号键（gofile 同款）
+    #[tokio::test]
+    async fn test_canonical_key_quark() {
+        let k0 = canonical_key("https://pan.quark.cn/s/d34c18e9d62a#/list/share").await;
+        assert_eq!(k0, Some("quark:d34c18e9d62a".into()));
+        let k2 = canonical_key("https://pan.quark.cn/s/d34c18e9d62a?feiliu_i=2").await;
+        assert_eq!(k2, Some("quark:d34c18e9d62a:i2".into()));
+        assert_ne!(k0, k2, "不同序号必须不同键（批量防撞查重）");
+    }
+
     /// 真实抖音短链（v.douyin.com）：应解析出 douyin:{id} 规范键
     #[tokio::test]
     async fn test_canonical_key_douyin_short_real() {
@@ -333,6 +343,33 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             });
         }
         return None;
+    }
+    // 夸克网盘分享：批量序号键（gofile 同款防撞查重）
+    if lower.contains("pan.quark.cn") && lower.contains("/s/") {
+        let idx = lower.find("/s/")? + "/s/".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if code.len() < 8 {
+            return None;
+        }
+        let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
+            let p = lower.find(m)?;
+            let digits: String = url[p + m.len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if digits.is_empty() {
+                None
+            } else {
+                Some(digits)
+            }
+        });
+        return Some(match fi {
+            Some(i) => format!("quark:{code}:i{i}"),
+            None => format!("quark:{code}"),
+        });
     }
     // UC 网盘分享（fast/drive 子域同一 short key）
     if lower.contains("uc.cn") && lower.contains("/s/") {
