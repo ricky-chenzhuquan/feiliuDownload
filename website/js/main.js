@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  var APP_VERSION = "0.1.1";
+  var APP_VERSION = "0.1.3";
 
   var DICT = {
     en: {
@@ -418,6 +418,11 @@
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
       var key = el.getAttribute("data-i18n");
       if (dict[key] != null) el.textContent = String(dict[key]).replace(/\{v\}/g, APP_VERSION);
+    });
+    // 下载按钮 href 单一来源=APP_VERSION：发版只改常量一处，防资产改名后旧链接 404
+    document.querySelectorAll("[data-asset]").forEach(function (el) {
+      el.href = "https://github.com/ricky-chenzhuquan/feiliuDownload/releases/latest/download/"
+        + String(el.getAttribute("data-asset")).replace(/\{v\}/g, APP_VERSION);
     });
     document.querySelectorAll("[data-i18n-html]").forEach(function (el) {
       var key = el.getAttribute("data-i18n-html");
