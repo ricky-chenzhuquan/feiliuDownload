@@ -207,6 +207,10 @@ pub struct WebviewExtractPlan {
     /// 此类站点代取需短暂可见窗口让验证码全速跑完（r4 轮 17 实锤）
     #[serde(default)]
     pub visible: bool,
+    /// document-start 注入脚本（默认 None）。城通内核检测在页面 JS 启动时
+    /// 运行，eval 时伪装太晚——UA/特征伪装必须先于页面全部 JS（r4 轮 27 实验）
+    #[serde(default)]
+    pub init_js: Option<String>,
 }
 
 /// 解析结果：直链 + 建议文件名 + 站点要求头 + 提示

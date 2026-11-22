@@ -89,6 +89,7 @@ pub fn run() {
                     let plan = downloader::extract::WebviewExtractPlan {
                         url: "https://www.82dj.com/play/31534".into(),
                         visible: false,
+                        init_js: None,
                         js: r##"(()=>{const a=document.querySelector("audio");return a?JSON.stringify(a.currentSrc||a.src||""):"";})()"##.into(),
                         timeout_ms: 15_000,
                     };
@@ -213,8 +214,8 @@ pub fn run() {
                     let ct_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                        eprintln!("[feiliu-selftest] 开始城通 WebView 自检（/f/9603111-996209741-b3814a 单文件链路）");
-                        let plan = downloader::extract::ct::resolve("https://url11.ctfile.com/f/9603111-996209741-b3814a?p=5425")
+                        eprintln!("[feiliu-selftest] 开始城通文件夹批量自检（/d/9603111-61013521-9d7894，UA 伪装+状态机全链）");
+                        let plan = downloader::extract::ct::resolve("https://url11.ctfile.com/d/9603111-61013521-9d7894?p=5425")
                             .await
                             .and_then(|e| e.webview_plan)
                             .ok_or("ct resolve 未产出代取计划")
@@ -228,8 +229,9 @@ pub fn run() {
                             }
                         };
                         eprintln!(
-                            "[feiliu-selftest] ct-extract: 成功 {:.1}s url={} name={}",
+                            "[feiliu-selftest] ct-extract: 成功 {:.1}s files={} url={} name={}",
                             started.elapsed().as_secs_f64(),
+                            wv.files.len(),
                             &wv.url[..90.min(wv.url.len())],
                             wv.name.as_deref().unwrap_or("-"),
                         );

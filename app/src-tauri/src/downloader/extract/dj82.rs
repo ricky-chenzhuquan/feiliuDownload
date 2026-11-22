@@ -50,6 +50,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     let plan = super::WebviewExtractPlan {
         url: url.trim_end_matches('/').to_string(),
         visible: false,
+        init_js: None,
         js: r##"(()=>{const a=document.querySelector("audio");return a?JSON.stringify(a.currentSrc||a.src||""):"";})()"##.into(),
         timeout_ms: 15_000,
     };

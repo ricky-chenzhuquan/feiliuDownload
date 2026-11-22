@@ -15,6 +15,64 @@ use super::WebviewExtractPlan;
 
 const CT_REFERER: &str = "https://www.ctfile.com/";
 
+/// plan.js（文件夹批量）：单 webview 会话状态机（跨导航 sessionStorage 持久）。
+/// 文件夹页收割 /f/t-{JWT} 预授权链接（r4 轮 21 发现，altcha 自动过）→ 逐个
+/// 导航 → t- 页 patch fetch + click 普通下载 → 轮询 sessionStorage → data.downurl
+/// + 标题前缀文件名。r4 轮 27 起配 init_js UA 伪装（检测门通过，downurl 激活 206）。
+const CT_FOLDER_JS: &str = r##"(()=>{ const NAV=String(performance.timeOrigin);
+if(window.__fl_nav===NAV) return window.__fl_ctf_r||'';
+window.__fl_nav=NAV;
+(async()=>{ try{
+  const S="ctf_batch_state";
+  let st=null; try{ st=JSON.parse(sessionStorage.getItem(S)||"null"); }catch(e){}
+  if(!(st&&typeof st.idx==="number")){
+    let links=[];
+    for(let i=0;i<45;i++){ links=Array.from(document.querySelectorAll('a[href*="/f/t-"]')); if(links.length) break; await new Promise(r=>setTimeout(r,1000)); }
+    if(!links.length){ return; }
+    const items=links.map(a=>({link:new URL(a.getAttribute("href"),location.origin).href,name:(a.textContent||"").trim().replace(/\s+/g," ")})).filter(x=>x.name&&x.name!=="普通下载");
+    if(!items.length){ return; }
+    st={items:items,idx:0,results:[]};
+    sessionStorage.setItem(S,JSON.stringify(st));
+    location.href=st.items[0].link;
+    return;
+  }
+  const item=st.items[st.idx];
+  if(!item){ sessionStorage.removeItem(S); window.__fl_ctf_r=''; return; }
+  let btn=null;
+  for(let i=0;i<30;i++){ btn=Array.from(document.querySelectorAll("button")).find(b=>b.textContent.includes("普通下载")); if(btn) break; await new Promise(r=>setTimeout(r,1000)); }
+  if(!btn){ st.idx=st.idx+1; sessionStorage.setItem(S,JSON.stringify(st)); if(st.idx<st.items.length){ location.href=st.items[st.idx].link; } return; }
+  sessionStorage.setItem("ctf_full","[]");
+  const of=window.fetch;
+  window.fetch=async function(...args){ const u=typeof args[0]==='string'?args[0]:(args[0]&&args[0].url)||''; const res=await of.apply(this,args);
+    if(u.includes("/url/download")){ try{ const t=await res.clone().text(); const arr=JSON.parse(sessionStorage.getItem("ctf_full")||"[]"); arr.push(t.slice(0,8000)); sessionStorage.setItem("ctf_full",JSON.stringify(arr.slice(-6))); }catch(e){} }
+    return res; };
+  btn.click();
+  let raw='[]', last='', stable=0;
+  for(let i=0;i<30;i++){ const cur=sessionStorage.getItem("ctf_full")||"[]"; if(cur===last){ stable++; if(stable>=4 && cur!=="[]") break; } else { last=cur; stable=0; } await new Promise(r=>setTimeout(r,1000)); }
+  raw=sessionStorage.getItem("ctf_full")||"[]";
+  try{ const arr=JSON.parse(raw); let u="";
+    for(const s of arr){ try{ const j=JSON.parse(s); if(j.code===200 && j.data && j.data.downurl){ u=j.data.downurl; } }catch(e){} }
+    if(u){ const nm=(item.name||"").replace(/[\s\.]*\d+(\.\d+)?\s*[KMG]?B\s*$/i,"").trim()||item.name; st.results.push({name:nm,url:u}); } }catch(e){}
+  st.idx=st.idx+1; sessionStorage.setItem(S,JSON.stringify(st));
+  if(st.idx<st.items.length){ location.href=st.items[st.idx].link; return; }
+  sessionStorage.removeItem(S);
+  if(!st.results.length){ window.__fl_ctf_r=''; return; }
+  window.__fl_ctf_r=JSON.stringify({url:st.results[0].url,name:st.results[0].name,total:st.results.length,files:st.results.map(r=>({name:r.name,link:r.url}))});
+}catch(e){ window.__fl_ctf_r=''; } })();
+return window.__fl_ctf_r||'';
+})()"##;
+
+
+/// document-start UA/特征伪装（城通内核检测在页面 JS 启动时运行，eval 时太晚）
+const CT_INIT_JS: &str = r##"(() => {
+  try {
+    if (!window.chrome) window.chrome = {runtime: {}, loadTimes: function(){}, csi: function(){}, app: {isInstalled: false}};
+    Object.defineProperty(Navigator.prototype, "userAgent", {get: function(){ return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"; }, configurable: true});
+    Object.defineProperty(Navigator.prototype, "platform", {get: function(){ return "Win32"; }, configurable: true});
+    Object.defineProperty(Navigator.prototype, "webdriver", {get: function(){ return false; }, configurable: true});
+  } catch (e) {}
+})();"##;
+
 /// plan.js：等文件页出现（ALTCHA 自动验证 + 密码自动提交后）→ patch fetch
 /// 捕获页面自身的 /url/download 响应（access_pass 单次消费，不能重放）→
 /// JS click 普通下载 → 轮询 sessionStorage → data.downurl + 标题前缀文件名。
@@ -92,17 +150,21 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     // 代取页面 URL 原样透传（含 ?p= 提取码，页面自动预填触发 altcha 流程）
     let plan_url = url.to_string();
     if is_folder_url(url) {
-        // 文件夹批量：状态机/捕获机制已建成（轮22），但 /url/download 捕获的
-        // downurl 页内带 cookie 亦 503（激活机制未破解）——诚实提示不 ship 半成品
+        // 文件夹批量：r4 轮 27 UA 伪装过检后 downurl 激活恢复（206），状态机重新启用
         return Some(super::Extracted {
             direct_url: String::new(),
             filename: format!("ct_folder_{key}"),
             referer: Some(CT_REFERER.into()),
-            notice: Some(
-                "城通文件夹分享的批量下载暂不可用（直链激活机制未破解），请打开文件夹页面逐个复制单文件链接添加".into(),
-            ),
+            notice: None,
             cookies: None,
-            webview_plan: None,
+            webview_plan: Some(WebviewExtractPlan {
+                url: plan_url,
+                visible: true,
+                init_js: Some(CT_INIT_JS.into()),
+                js: CT_FOLDER_JS.into(),
+                // altcha + N×(导航+点击+捕获)，按文件数放宽
+                timeout_ms: 240_000,
+            }),
         });
     }
     Some(super::Extracted {
@@ -116,6 +178,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         webview_plan: Some(WebviewExtractPlan {
             url: plan_url,
             visible: true,
+            init_js: Some(CT_INIT_JS.into()),
             js: CT_JS.into(),
             // ALTCHA PoW 10-15s + 下载轮询，比 gofile 更长
             timeout_ms: 90_000,

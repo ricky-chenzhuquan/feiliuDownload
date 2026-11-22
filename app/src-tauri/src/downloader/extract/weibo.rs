@@ -85,6 +85,7 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
         webview_plan: Some(WebviewExtractPlan {
             url: target,
             visible: false,
+            init_js: None,
             js: WEIBO_JS.into(),
             timeout_ms: 30_000,
         }),

@@ -106,7 +106,10 @@ pub async fn extract(
     .inner_size(480.0, 400.0)
     // document-start 注入静音 hook：先于页面全部 JS（含 autoplay）执行，
     // 零出声间隙（2026-11-20 用户报障「打电话时放歌」的治本修复）
-    .initialization_script(MUTE_JS);
+    .initialization_script(match &plan.init_js {
+        Some(init) => format!("{MUTE_JS}\n{}", init),
+        None => MUTE_JS.to_string(),
+    });
     // ALTCHA 等 PoW 验证码依赖页内计时器，隐藏 WebView 被 WebKit 节流
     // （1Hz）爬行——此类站点（plan.visible=true）用可见窗口全速跑完
     if !plan.visible {

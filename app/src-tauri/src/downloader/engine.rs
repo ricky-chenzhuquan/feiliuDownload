@@ -447,8 +447,8 @@ impl Inner {
         } else if lower.contains("uc.cn") && lower.contains("/s/") {
             // UC 网盘：单文件可普通添加、多文件/文件夹可批量（序号 URL 逐个建任务）
             Some("uc_share".to_string())
-        } else if lower.contains("ctfile.com") && lower.contains("/f/") {
-            // 城通网盘单文件：批量按钮=1 任务无害（gofile 同款）；/d/ 文件夹走诚实 notice
+        } else if lower.contains("ctfile.com") && (lower.contains("/f/") || lower.contains("/d/")) {
+            // 城通网盘：/f/ 单文件批量=1 任务无害；/d/ 文件夹批量（轮27 UA 伪装复活）
             Some("ct_share".to_string())
         } else if notice.is_some()
             && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"))
