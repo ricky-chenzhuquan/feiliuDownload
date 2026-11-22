@@ -53,8 +53,13 @@ fn path() -> Option<&'static PathBuf> {
 }
 
 /// 读取已存会话（无初始化/无文件/损坏 → None）
+/// 测试/诊断可用 FEILIU_BAIDU_SESSION_FILE 覆盖路径
 pub fn load_session() -> Option<BaiduSession> {
-    let raw = std::fs::read_to_string(path()?).ok()?;
+    let p = std::env::var("FEILIU_BAIDU_SESSION_FILE")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| path().cloned())?;
+    let raw = std::fs::read_to_string(p).ok()?;
     serde_json::from_str(&raw).ok()
 }
 
