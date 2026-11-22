@@ -138,6 +138,20 @@ export const baiduLogin = () => invoke<string>("baidu_login");
 
 export const baiduLogout = () => invoke<void>("baidu_logout");
 
+// ---------- 夸克网盘登录态（WebView 收割 __pus 会话） ----------
+
+export interface QuarkLoginStatus {
+  logged_in: boolean;
+  saved_at: number | null;
+}
+
+export const quarkLoginStatus = () =>
+  invoke<QuarkLoginStatus>("quark_login_status");
+
+export const quarkLogin = () => invoke<string>("quark_login");
+
+export const quarkLogout = () => invoke<void>("quark_logout");
+
 export const addCtBatch = (
   url: string,
   dir?: string,

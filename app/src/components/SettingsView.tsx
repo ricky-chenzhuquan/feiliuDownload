@@ -10,7 +10,11 @@ import {
   baiduLogin,
   baiduLoginStatus,
   baiduLogout,
+  quarkLogin,
+  quarkLoginStatus,
+  quarkLogout,
   type BaiduLoginStatus,
+  type QuarkLoginStatus,
   type Settings,
   type UpdateInfo,
 } from "../lib/api";
@@ -75,6 +79,44 @@ export default function SettingsView({ onLoaded }: Props) {
       refreshBaidu();
     } finally {
       setBaiduBusy(false);
+    }
+  };
+
+  // 夸克网盘登录态
+  const [quarkStatus, setQuarkStatus] = useState<QuarkLoginStatus | null>(null);
+  const [quarkBusy, setQuarkBusy] = useState(false);
+  const [quarkMsg, setQuarkMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    quarkLoginStatus().then(setQuarkStatus).catch(() => {});
+  }, []);
+
+  const refreshQuark = () => {
+    quarkLoginStatus().then(setQuarkStatus).catch(() => {});
+  };
+
+  const quarkLoginAction = async () => {
+    setQuarkBusy(true);
+    setQuarkMsg(null);
+    try {
+      const msg = await quarkLogin();
+      setQuarkMsg(msg);
+      refreshQuark();
+    } catch (e) {
+      setQuarkMsg(String(e));
+    } finally {
+      setQuarkBusy(false);
+    }
+  };
+
+  const quarkLogoutAction = async () => {
+    setQuarkBusy(true);
+    try {
+      await quarkLogout();
+      setQuarkMsg(null);
+      refreshQuark();
+    } finally {
+      setQuarkBusy(false);
     }
   };
 
@@ -322,6 +364,43 @@ export default function SettingsView({ onLoaded }: Props) {
         {baiduMsg && <p className="dim-note">{baiduMsg}</p>}
         <p className="dim-note">
           登录后即可用你自己的账号直接下载百度网盘分享内容（提取码自动识别）。
+          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
+        </p>
+      </div>
+
+      <div className="settings-card muted">
+        <h3>夸克网盘登录</h3>
+        {quarkStatus?.logged_in ? (
+          <div className="update-row">
+            <span className="upd-ok">
+              已登录 ✓（{quarkStatus.saved_at
+                ? new Date(quarkStatus.saved_at).toLocaleString()
+                : "会话有效"}
+              ）
+            </span>
+            <button
+              className="btn ghost"
+              onClick={quarkLogoutAction}
+              disabled={quarkBusy}
+            >
+              退出登录
+            </button>
+          </div>
+        ) : (
+          <div className="update-row">
+            <span className="dim">未登录</span>
+            <button
+              className="btn primary"
+              onClick={quarkLoginAction}
+              disabled={quarkBusy}
+            >
+              {quarkBusy ? "等待登录…" : "登录夸克网盘"}
+            </button>
+          </div>
+        )}
+        {quarkMsg && <p className="dim-note">{quarkMsg}</p>}
+        <p className="dim-note">
+          登录后即可用你自己的账号下载夸克网盘分享内容（匿名可下小文件，登录后大文件自动转存后直下）。
           会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
         </p>
       </div>
