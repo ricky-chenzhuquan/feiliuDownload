@@ -112,8 +112,19 @@ pub fn login_status() -> BaiduLoginStatus {
     }
 }
 
+/// 判断 cookie domain 是否属于 baidu.com 家族（".baidu.com"/"pan.baidu.com" 等）
+fn is_baidu_domain(domain: &str) -> bool {
+    let d = domain.trim_start_matches('.');
+    d == "baidu.com" || d.ends_with(".baidu.com")
+}
+
 /// 打开可见登录窗口，轮询原生 cookie 等待 BDUSS 出现（登录成功标志）。
 /// 用户关窗=取消；5 分钟超时。成功后窗口自动关闭并返回会话。
+///
+/// 注意：不用 `cookies_for_url`——wry 实现按 `cookie.domain() == url.domain()`
+/// 严格相等过滤，而 BDUSS/STOKEN 挂在 `.baidu.com`（前导点域），与
+/// `pan.baidu.com` 永不相等，轮询恒空（2026-11-22 真机实锤）。改用
+/// `cookies()` 全量 cookie store + 自行按 baidu.com 家族过滤。
 pub async fn login_collect(app: tauri::AppHandle) -> Result<BaiduSession, String> {
     // 上次未关的同名窗口先销毁（幂等重开）
     if let Some(w) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
@@ -131,7 +142,7 @@ pub async fn login_collect(app: tauri::AppHandle) -> Result<BaiduSession, String
     let _ = window.set_focus();
 
     let deadline = std::time::Instant::now() + LOGIN_TIMEOUT;
-    let probe_url: tauri::Url = LOGIN_URL.parse().map_err(|e| format!("URL 解析失败: {e}"))?;
+    let mut polls = 0u32;
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
         // 窗口已被用户关闭（get 不到）= 取消
@@ -142,20 +153,39 @@ pub async fn login_collect(app: tauri::AppHandle) -> Result<BaiduSession, String
             let _ = window.destroy();
             return Err("登录超时（5 分钟），请重试".into());
         }
+        polls += 1;
         // 导航中/尚未登录时可能报错——静默继续下一轮
-        let cookies = match window.cookies_for_url(probe_url.clone()) {
+        let cookies = match window.cookies() {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[feiliu-baidu-login] 轮询 {polls}: cookie store 读取失败 {e}");
+                continue;
+            }
         };
-        let Some(_) = cookies.iter().find(|c| c.name() == "BDUSS") else {
+        let baidu_cookies: Vec<_> = cookies
+            .iter()
+            .filter(|c| c.domain().map(is_baidu_domain).unwrap_or(false))
+            .collect();
+        if polls % 5 == 0 {
+            eprintln!(
+                "[feiliu-baidu-login] 轮询 {polls}: 全量 {} 条，baidu 家族 {} 条",
+                cookies.len(),
+                baidu_cookies.len()
+            );
+        }
+        let Some(_) = baidu_cookies.iter().find(|c| c.name() == "BDUSS") else {
             continue;
         };
-        // 登录成功：全部适用 cookie 拼成请求头形态
-        let header = cookies
+        // 登录成功：baidu 家族 cookie 拼成请求头形态
+        let header = baidu_cookies
             .iter()
             .map(|c| format!("{}={}", c.name(), c.value()))
             .collect::<Vec<_>>()
             .join("; ");
+        eprintln!(
+            "[feiliu-baidu-login] 登录成功（轮询 {polls} 次），收割 {} 条 cookie",
+            baidu_cookies.len()
+        );
         let _ = window.destroy();
         return Ok(BaiduSession {
             cookies: header,
