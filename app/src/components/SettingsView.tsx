@@ -16,13 +16,11 @@ import {
   pan123Login,
   pan123LoginStatus,
   pan123Logout,
-  type BaiduLoginStatus,
-  type PanLoginStatus,
-  type QuarkLoginStatus,
   type Settings,
   type UpdateInfo,
 } from "../lib/api";
 import { IconFolder } from "./Icons";
+import { LoginCard, useCloudLogin } from "./LoginCard";
 
 interface Props {
   onLoaded?: (s: Settings) => void;
@@ -43,10 +41,10 @@ export default function SettingsView({ onLoaded }: Props) {
     "idle" | "checking" | UpdateInfo | "error"
   >("idle");
   const [installing, setInstalling] = useState(false);
-  // 百度网盘登录态
-  const [baiduStatus, setBaiduStatus] = useState<BaiduLoginStatus | null>(null);
-  const [baiduBusy, setBaiduBusy] = useState(false);
-  const [baiduMsg, setBaiduMsg] = useState<string | null>(null);
+  // 网盘登录态（百度/夸克/123 云盘，三站同构 hook）
+  const baidu = useCloudLogin(baiduLoginStatus, baiduLogin, baiduLogout);
+  const quark = useCloudLogin(quarkLoginStatus, quarkLogin, quarkLogout);
+  const pan = useCloudLogin(pan123LoginStatus, pan123Login, pan123Logout);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -54,113 +52,7 @@ export default function SettingsView({ onLoaded }: Props) {
       onLoaded?.(s);
     });
     isMobile().then(setMobile);
-    baiduLoginStatus().then(setBaiduStatus).catch(() => {});
   }, []);
-
-  const refreshBaidu = () => {
-    baiduLoginStatus().then(setBaiduStatus).catch(() => {});
-  };
-
-  const baiduLoginAction = async () => {
-    setBaiduBusy(true);
-    setBaiduMsg(null);
-    try {
-      const msg = await baiduLogin();
-      setBaiduMsg(msg);
-      refreshBaidu();
-    } catch (e) {
-      setBaiduMsg(String(e));
-    } finally {
-      setBaiduBusy(false);
-    }
-  };
-
-  const baiduLogoutAction = async () => {
-    setBaiduBusy(true);
-    try {
-      await baiduLogout();
-      setBaiduMsg(null);
-      refreshBaidu();
-    } finally {
-      setBaiduBusy(false);
-    }
-  };
-
-  // 夸克网盘登录态
-  const [quarkStatus, setQuarkStatus] = useState<QuarkLoginStatus | null>(null);
-  const [quarkBusy, setQuarkBusy] = useState(false);
-  const [quarkMsg, setQuarkMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    quarkLoginStatus().then(setQuarkStatus).catch(() => {});
-  }, []);
-
-  const refreshQuark = () => {
-    quarkLoginStatus().then(setQuarkStatus).catch(() => {});
-  };
-
-  const quarkLoginAction = async () => {
-    setQuarkBusy(true);
-    setQuarkMsg(null);
-    try {
-      const msg = await quarkLogin();
-      setQuarkMsg(msg);
-      refreshQuark();
-    } catch (e) {
-      setQuarkMsg(String(e));
-    } finally {
-      setQuarkBusy(false);
-    }
-  };
-
-  const quarkLogoutAction = async () => {
-    setQuarkBusy(true);
-    try {
-      await quarkLogout();
-      setQuarkMsg(null);
-      refreshQuark();
-    } finally {
-      setQuarkBusy(false);
-    }
-  };
-
-  // 123 云盘登录态
-  const [panStatus, setPanStatus] = useState<PanLoginStatus | null>(null);
-  const [panBusy, setPanBusy] = useState(false);
-  const [panMsg, setPanMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    pan123LoginStatus().then(setPanStatus).catch(() => {});
-  }, []);
-
-  const refreshPan = () => {
-    pan123LoginStatus().then(setPanStatus).catch(() => {});
-  };
-
-  const panLoginAction = async () => {
-    setPanBusy(true);
-    setPanMsg(null);
-    try {
-      const msg = await pan123Login();
-      setPanMsg(msg);
-      refreshPan();
-    } catch (e) {
-      setPanMsg(String(e));
-    } finally {
-      setPanBusy(false);
-    }
-  };
-
-  const panLogoutAction = async () => {
-    setPanBusy(true);
-    try {
-      await pan123Logout();
-      setPanMsg(null);
-      refreshPan();
-    } finally {
-      setPanBusy(false);
-    }
-  };
 
   if (!settings) return <div className="page-loading">加载中…</div>;
 
@@ -373,116 +265,41 @@ export default function SettingsView({ onLoaded }: Props) {
         </p>
       </div>
 
-      <div className="settings-card">
-        <h3>百度网盘登录</h3>
-        {baiduStatus?.logged_in ? (
-          <div className="update-row">
-            <span className="upd-ok">
-              已登录 ✓（{baiduStatus.saved_at
-                ? new Date(baiduStatus.saved_at).toLocaleString()
-                : "会话有效"}
-              ）
-            </span>
-            <button
-              className="btn ghost"
-              onClick={baiduLogoutAction}
-              disabled={baiduBusy}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <div className="update-row">
-            <span className="dim">未登录</span>
-            <button
-              className="btn primary"
-              onClick={baiduLoginAction}
-              disabled={baiduBusy}
-            >
-              {baiduBusy ? "等待登录…" : "登录百度网盘"}
-            </button>
-          </div>
-        )}
-        {baiduMsg && <p className="dim-note">{baiduMsg}</p>}
-        <p className="dim-note">
-          登录后即可用你自己的账号直接下载百度网盘分享内容（提取码自动识别）。
-          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
-        </p>
-      </div>
+      <LoginCard
+        title="百度网盘登录"
+        loggedIn={baidu.status?.logged_in ?? false}
+        savedAt={baidu.status?.saved_at ?? null}
+        busy={baidu.busy}
+        msg={baidu.msg}
+        onLogin={baidu.login}
+        onLogout={baidu.logout}
+        loginLabel="登录百度网盘"
+        hint="登录后即可用你自己的账号直接下载百度网盘分享内容（提取码自动识别）。会话 cookie 只保存在本机（0600 权限），不经过任何第三方。"
+      />
 
-      <div className="settings-card muted">
-        <h3>夸克网盘登录</h3>
-        {quarkStatus?.logged_in ? (
-          <div className="update-row">
-            <span className="upd-ok">
-              已登录 ✓（{quarkStatus.saved_at
-                ? new Date(quarkStatus.saved_at).toLocaleString()
-                : "会话有效"}
-              ）
-            </span>
-            <button
-              className="btn ghost"
-              onClick={quarkLogoutAction}
-              disabled={quarkBusy}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <div className="update-row">
-            <span className="dim">未登录</span>
-            <button
-              className="btn primary"
-              onClick={quarkLoginAction}
-              disabled={quarkBusy}
-            >
-              {quarkBusy ? "等待登录…" : "登录夸克网盘"}
-            </button>
-          </div>
-        )}
-        {quarkMsg && <p className="dim-note">{quarkMsg}</p>}
-        <p className="dim-note">
-          登录后即可用你自己的账号下载夸克网盘分享内容（匿名可下小文件，登录后大文件自动转存后直下）。
-          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
-        </p>
-      </div>
+      <LoginCard
+        title="夸克网盘登录"
+        loggedIn={quark.status?.logged_in ?? false}
+        savedAt={quark.status?.saved_at ?? null}
+        busy={quark.busy}
+        msg={quark.msg}
+        onLogin={quark.login}
+        onLogout={quark.logout}
+        loginLabel="登录夸克网盘"
+        hint="登录后即可用你自己的账号下载夸克网盘分享内容（匿名可下小文件，登录后大文件自动转存后直下）。会话 cookie 只保存在本机（0600 权限），不经过任何第三方。"
+      />
 
-      <div className="settings-card muted">
-        <h3>123 云盘登录</h3>
-        {panStatus?.logged_in ? (
-          <div className="update-row">
-            <span className="upd-ok">
-              已登录 ✓（{panStatus.saved_at
-                ? new Date(panStatus.saved_at).toLocaleString()
-                : "会话有效"}
-              ）
-            </span>
-            <button
-              className="btn ghost"
-              onClick={panLogoutAction}
-              disabled={panBusy}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <div className="update-row">
-            <span className="dim">未登录</span>
-            <button
-              className="btn primary"
-              onClick={panLoginAction}
-              disabled={panBusy}
-            >
-              {panBusy ? "等待登录…" : "登录 123 云盘"}
-            </button>
-          </div>
-        )}
-        {panMsg && <p className="dim-note">{panMsg}</p>}
-        <p className="dim-note">
-          登录后即可用你自己的账号下载 123 云盘分享内容（注册用户每月 10GB 免费提取流量）。
-          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
-        </p>
-      </div>
+      <LoginCard
+        title="123 云盘登录"
+        loggedIn={pan.status?.logged_in ?? false}
+        savedAt={pan.status?.saved_at ?? null}
+        busy={pan.busy}
+        msg={pan.msg}
+        onLogin={pan.login}
+        onLogout={pan.logout}
+        loginLabel="登录 123 云盘"
+        hint="登录后即可用你自己的账号下载 123 云盘分享内容（注册用户每月 10GB 免费提取流量）。会话 cookie 只保存在本机（0600 权限），不经过任何第三方。"
+      />
 
       <div className="settings-card muted">
         <h3>关于多连接加速</h3>
