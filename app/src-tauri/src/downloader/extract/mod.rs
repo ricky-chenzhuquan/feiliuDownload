@@ -39,6 +39,7 @@ mod pixiv;
 mod tiktok;
 mod twitter;
 pub mod ct;
+pub mod pan123;
 pub mod quark;
 pub mod fj;
 pub mod uc;
@@ -371,6 +372,36 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             None => format!("quark:{code}"),
         });
     }
+    // 123 云盘分享（主域+轮换域）：批量序号键（gofile 同款）
+    if lower.contains("123pan.com")
+        || lower.contains("123684.com")
+        || lower.contains("123865.com")
+    {
+        let idx = lower.find("/s/")? + "/s/".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if code.len() < 6 {
+            return None;
+        }
+        let fi = ["?feiliu_i=", "&feiliu_i="].iter().find_map(|m| {
+            let p = lower.find(m)?;
+            let digits: String = url[p + m.len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if digits.is_empty() {
+                None
+            } else {
+                Some(digits)
+            }
+        });
+        return Some(match fi {
+            Some(i) => format!("pan123:{code}:i{i}"),
+            None => format!("pan123:{code}"),
+        });
+    }
     // UC 网盘分享（fast/drive 子域同一 short key）
     if lower.contains("uc.cn") && lower.contains("/s/") {
         let idx = lower.find("/s/")? + "/s/".len();
@@ -682,6 +713,23 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
             }
         }
         return baidu::resolve(url).await;
+    }
+    // 123 云盘分享（主域+轮换域）：匿名列表+诚实提示（5112 流量包墙）；
+    // 登录态（pan123_login 会话 sso-token）直链下载
+    if lower.contains("123pan.com/s/")
+        || lower.contains("123684.com/s/")
+        || lower.contains("123865.com/s/")
+    {
+        #[cfg(desktop)]
+        if let Some(session) = crate::downloader::pan123_login::load_session() {
+            if let Some(e) = pan123::resolve_with_cookies(url, &session.cookies).await {
+                if !e.direct_url.is_empty() {
+                    return Some(e);
+                }
+                // 登录态失败（流量尽/会话失效）回落匿名链路给诚实提示
+            }
+        }
+        return pan123::resolve(url).await;
     }
     // 夸克网盘分享：登录态（quark_login 会话）走转存直链，未登录走访客链路
     // （≤10MiB 直下；超限诚实提示登录）

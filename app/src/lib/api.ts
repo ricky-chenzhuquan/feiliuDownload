@@ -159,6 +159,20 @@ export const quarkLogin = () => invoke<string>("quark_login");
 
 export const quarkLogout = () => invoke<void>("quark_logout");
 
+// ---------- 123 云盘登录态（WebView 收割 sso-token 会话） ----------
+
+export interface PanLoginStatus {
+  logged_in: boolean;
+  saved_at: number | null;
+}
+
+export const pan123LoginStatus = () =>
+  invoke<PanLoginStatus>("pan123_login_status");
+
+export const pan123Login = () => invoke<string>("pan123_login");
+
+export const pan123Logout = () => invoke<void>("pan123_logout");
+
 export const addCtBatch = (
   url: string,
   dir?: string,

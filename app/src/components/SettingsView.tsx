@@ -13,7 +13,11 @@ import {
   quarkLogin,
   quarkLoginStatus,
   quarkLogout,
+  pan123Login,
+  pan123LoginStatus,
+  pan123Logout,
   type BaiduLoginStatus,
+  type PanLoginStatus,
   type QuarkLoginStatus,
   type Settings,
   type UpdateInfo,
@@ -117,6 +121,44 @@ export default function SettingsView({ onLoaded }: Props) {
       refreshQuark();
     } finally {
       setQuarkBusy(false);
+    }
+  };
+
+  // 123 云盘登录态
+  const [panStatus, setPanStatus] = useState<PanLoginStatus | null>(null);
+  const [panBusy, setPanBusy] = useState(false);
+  const [panMsg, setPanMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    pan123LoginStatus().then(setPanStatus).catch(() => {});
+  }, []);
+
+  const refreshPan = () => {
+    pan123LoginStatus().then(setPanStatus).catch(() => {});
+  };
+
+  const panLoginAction = async () => {
+    setPanBusy(true);
+    setPanMsg(null);
+    try {
+      const msg = await pan123Login();
+      setPanMsg(msg);
+      refreshPan();
+    } catch (e) {
+      setPanMsg(String(e));
+    } finally {
+      setPanBusy(false);
+    }
+  };
+
+  const panLogoutAction = async () => {
+    setPanBusy(true);
+    try {
+      await pan123Logout();
+      setPanMsg(null);
+      refreshPan();
+    } finally {
+      setPanBusy(false);
     }
   };
 
@@ -401,6 +443,43 @@ export default function SettingsView({ onLoaded }: Props) {
         {quarkMsg && <p className="dim-note">{quarkMsg}</p>}
         <p className="dim-note">
           登录后即可用你自己的账号下载夸克网盘分享内容（匿名可下小文件，登录后大文件自动转存后直下）。
+          会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
+        </p>
+      </div>
+
+      <div className="settings-card muted">
+        <h3>123 云盘登录</h3>
+        {panStatus?.logged_in ? (
+          <div className="update-row">
+            <span className="upd-ok">
+              已登录 ✓（{panStatus.saved_at
+                ? new Date(panStatus.saved_at).toLocaleString()
+                : "会话有效"}
+              ）
+            </span>
+            <button
+              className="btn ghost"
+              onClick={panLogoutAction}
+              disabled={panBusy}
+            >
+              退出登录
+            </button>
+          </div>
+        ) : (
+          <div className="update-row">
+            <span className="dim">未登录</span>
+            <button
+              className="btn primary"
+              onClick={panLoginAction}
+              disabled={panBusy}
+            >
+              {panBusy ? "等待登录…" : "登录 123 云盘"}
+            </button>
+          </div>
+        )}
+        {panMsg && <p className="dim-note">{panMsg}</p>}
+        <p className="dim-note">
+          登录后即可用你自己的账号下载 123 云盘分享内容（注册用户每月 10GB 免费提取流量）。
           会话 cookie 只保存在本机（0600 权限），不经过任何第三方。
         </p>
       </div>
