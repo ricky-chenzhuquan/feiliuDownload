@@ -51,6 +51,7 @@ pub fn run() {
             commands::add_lanzou_folder,
             commands::add_gofile_batch,
             commands::add_uc_batch,
+            commands::add_ct_batch,
             commands::add_bandcamp_album,
             commands::add_bilibili_bangumi,
             commands::add_task,
@@ -212,7 +213,7 @@ pub fn run() {
                     let ct_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                        eprintln!("[feiliu-selftest] 开始城通 WebView 自检（9603111-996209741-b3814a，生产 resolve 链路）");
+                        eprintln!("[feiliu-selftest] 开始城通 WebView 自检（/f/9603111-996209741-b3814a 单文件链路）");
                         let plan = downloader::extract::ct::resolve("https://url11.ctfile.com/f/9603111-996209741-b3814a?p=5425")
                             .await
                             .and_then(|e| e.webview_plan)

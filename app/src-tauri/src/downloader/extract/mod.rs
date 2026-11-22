@@ -657,8 +657,8 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
     if (lower.contains("feijipan.com") || lower.contains("feijix.com")) && lower.contains("/s/") {
         return fj::resolve(url).await;
     }
-    // 城通网盘分享（ALTCHA PoW 墙 → WebView 代取，api2 新链路）
-    if lower.contains("ctfile.com") && lower.contains("/f/") {
+    // 城通网盘分享（ALTCHA PoW 墙 → WebView 代取，api2 新链路；/f/ 单文件 + /d/ 文件夹批量）
+    if lower.contains("ctfile.com") && (lower.contains("/f/") || lower.contains("/d/")) {
         return ct::resolve(url).await;
     }
     // GoFile 网盘分享（wt 签名墙 → WebView 代取 + 会话 cookie 透传下载）

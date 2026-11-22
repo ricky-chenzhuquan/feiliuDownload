@@ -22,32 +22,51 @@ const CT_JS: &str = r##"(()=>{ if(!window.__fl_ct){ window.__fl_ct=1; (async()=>
   let btn=null;
   for(let i=0;i<50;i++){ btn=Array.from(document.querySelectorAll("button")).find(b=>b.textContent.includes("普通下载")); if(btn) break; await new Promise(r=>setTimeout(r,1000)); }
   if(!btn){ window.__fl_ct_r=''; return; }
-  sessionStorage.setItem("ctf_full","");
+  sessionStorage.setItem("ctf_full","[]");
   const of=window.fetch;
   window.fetch=async function(...args){ const u=typeof args[0]==='string'?args[0]:(args[0]&&args[0].url)||''; const res=await of.apply(this,args);
-    if(u.includes("/url/download")){ try{ const t=await res.clone().text(); sessionStorage.setItem("ctf_full",t.slice(0,8000)); }catch(e){} }
+    if(u.includes("/url/download")){ try{ const t=await res.clone().text(); const arr=JSON.parse(sessionStorage.getItem("ctf_full")||"[]"); arr.push(t.slice(0,8000)); sessionStorage.setItem("ctf_full",JSON.stringify(arr.slice(-6))); }catch(e){} }
     return res; };
   btn.click();
-  let raw='';
-  for(let i=0;i<40;i++){ raw=sessionStorage.getItem("ctf_full")||""; if(raw) break; await new Promise(r=>setTimeout(r,1000)); }
-  if(!raw){ window.__fl_ct_r=''; return; }
-  const j=JSON.parse(raw);
-  const url=(j.data&&j.data.downurl)||"";
-  const name=(document.title.split(" - ")[0]||"").trim();
-  window.__fl_ct_r=JSON.stringify({url:url,name:name});
+  // 等响应稳定（倒计时中间态：取末次 code=200 的 downurl）
+  let raw='[]', last='', stable=0;
+  for(let i=0;i<30;i++){ const cur=sessionStorage.getItem("ctf_full")||"[]"; if(cur===last){ stable++; if(stable>=4 && cur!=="[]") break; } else { last=cur; stable=0; } await new Promise(r=>setTimeout(r,1000)); }
+  raw=sessionStorage.getItem("ctf_full")||"[]";
+  let url='', name=(document.title.split(" - ")[0]||"").trim();
+  try{ const arr=JSON.parse(raw);
+    for(const s of arr){ try{ const j=JSON.parse(s); if(j.code===200 && j.data && j.data.downurl){
+      url=j.data.downurl;
+      // audit 激活：响应自带 audit_url+签名参数，页面流程靠它激活 CDN 直链（503→206）
+      const au=(j.data.audit_url || (j.data.audit && j.data.audit.url) || "");
+      const ap=(j.data.audit && j.data.audit.params) || null;
+      if(au && ap){ try{ await fetch(au, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(ap)}); }catch(e){} }
+    } }catch(e){} }
+  }catch(e){}
+  if(!url){ window.__fl_ct_r=''; return; }
+  // 激活后内页复核（带 cookie Range）
+  let stt=0; try{ const rr=await fetch(url, {headers:{Range:"bytes=0-63"}}); stt=rr.status; }catch(e){ stt=-1; }
+  if(stt!==206 && stt!==200){ await new Promise(r=>setTimeout(r,6000)); try{ const rr2=await fetch(url, {headers:{Range:"bytes=0-63"}}); stt=rr2.status; }catch(e){ stt=-2; } }
+  window.__fl_ct_r=JSON.stringify({url:url,name:name,total:1,files:[{name:name,link:url}]});
 }catch(e){ window.__fl_ct_r=''; } })(); }
 return window.__fl_ct_r||'';
 })()"##;
 
-/// 识别城通分享：{uid子域}.ctfile.com/f/{uid-fid-chk}（访问码 ?p=xxx）
+/// 识别城通分享：{uid子域}.ctfile.com/f/{uid-fid-chk} 或 /d/{uid-fid-chk}（访问码 ?p=xxx）
 fn parse_share_url(url: &str) -> Option<String> {
     let lower = url.to_lowercase();
-    if !lower.contains("ctfile.com") || !lower.contains("/f/") {
+    if !lower.contains("ctfile.com") {
         return None;
     }
+    let marker = if lower.contains("/f/") {
+        "/f/"
+    } else if lower.contains("/d/") {
+        "/d/"
+    } else {
+        return None;
+    };
     // 保留 query（?p= 提取码，页面自动预填）
-    let idx = lower.find("/f/")?;
-    let rest = &url[idx + "/f/".len()..];
+    let idx = lower.find(marker)?;
+    let rest = &url[idx + marker.len()..];
     let key: String = rest
         .chars()
         .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
@@ -59,10 +78,33 @@ fn parse_share_url(url: &str) -> Option<String> {
     }
 }
 
+/// 是否文件夹分享（/d/ 路径）
+fn is_folder_url(url: &str) -> bool {
+    url.to_lowercase().contains("/d/")
+}
+
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
+    let lower = url.to_lowercase();
+    if !lower.contains("ctfile.com") {
+        return None;
+    }
     let key = parse_share_url(url)?;
     // 代取页面 URL 原样透传（含 ?p= 提取码，页面自动预填触发 altcha 流程）
     let plan_url = url.to_string();
+    if is_folder_url(url) {
+        // 文件夹批量：状态机/捕获机制已建成（轮22），但 /url/download 捕获的
+        // downurl 页内带 cookie 亦 503（激活机制未破解）——诚实提示不 ship 半成品
+        return Some(super::Extracted {
+            direct_url: String::new(),
+            filename: format!("ct_folder_{key}"),
+            referer: Some(CT_REFERER.into()),
+            notice: Some(
+                "城通文件夹分享的批量下载暂不可用（直链激活机制未破解），请打开文件夹页面逐个复制单文件链接添加".into(),
+            ),
+            cookies: None,
+            webview_plan: None,
+        });
+    }
     Some(super::Extracted {
         // 直链由 WebView 代取产出（ALTCHA 自动验证 + access_pass 单次消费）
         direct_url: String::new(),

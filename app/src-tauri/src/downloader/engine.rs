@@ -447,6 +447,9 @@ impl Inner {
         } else if lower.contains("uc.cn") && lower.contains("/s/") {
             // UC 网盘：单文件可普通添加、多文件/文件夹可批量（序号 URL 逐个建任务）
             Some("uc_share".to_string())
+        } else if lower.contains("ctfile.com") && lower.contains("/f/") {
+            // 城通网盘单文件：批量按钮=1 任务无害（gofile 同款）；/d/ 文件夹走诚实 notice
+            Some("ct_share".to_string())
         } else if notice.is_some()
             && (lower.contains("music.163.com/playlist") || lower.contains("163cn.tv"))
         {
@@ -663,6 +666,48 @@ impl Inner {
             added,
             skipped,
             truncated: urls.len() > cap,
+        })
+    }
+
+    /// 城通网盘文件夹一键批量：WebView 代取单会话状态机（收割 t- 链→逐文件
+    /// 捕获直链）→ files 数组直链直接建任务（免重解析，downurl 短时效即建即下）
+    pub async fn add_ct_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        let app = self.app.get().ok_or("应用尚未初始化完成")?.clone();
+        let info = probe::probe(&probe::client(), &url).await.map_err(|e| e.to_string())?;
+        let plan = info
+            .webview_plan
+            .clone()
+            .ok_or("城通解析需 WebView 代取")?;
+        let wv = crate::downloader::webview_extract::extract(app, &plan)
+            .await
+            .map_err(|e| format!("文件夹清单代取失败: {e}"))?;
+        if wv.files.is_empty() {
+            return Err("文件夹内未解析出文件".into());
+        }
+        let cap = (self.settings().batch_limit as usize).max(1).min(wv.files.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        // wv.files 元组序 = (name, link)（webview_extract 约定 [{name,link}]）
+        for (name, link) in &wv.files[..cap] {
+            match self
+                .add_task(link.clone(), vec![], Some(name.clone()), dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 直链过期/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: wv.name.unwrap_or_else(|| "城通文件夹".into()),
+            total: wv.files.len() as u32,
+            added,
+            skipped,
+            truncated: wv.files.len() > cap,
         })
     }
 

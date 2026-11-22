@@ -56,6 +56,20 @@ pub async fn add_lanzou_folder(
         .await
 }
 
+/// 城通网盘文件夹一键批量：WebView 单会话状态机逐文件捕获直链建任务
+#[tauri::command]
+pub async fn add_ct_batch(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_ct_batch(url, dir, connections)
+        .await
+}
+
 /// UC 网盘分享一键批量：原生扁平清单逐文件建任务，上限 batch_limit 个
 #[tauri::command]
 pub async fn add_uc_batch(
