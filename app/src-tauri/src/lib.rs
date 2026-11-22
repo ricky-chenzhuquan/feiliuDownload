@@ -58,6 +58,9 @@ pub fn run() {
             commands::baidu_login,
             commands::baidu_logout,
             commands::baidu_login_status,
+            commands::quark_login,
+            commands::quark_logout,
+            commands::quark_login_status,
             commands::add_task,
             commands::pause_task,
             commands::resume_task,
@@ -80,6 +83,7 @@ pub fn run() {
         .setup(|app| {
             set_app_handle(app.handle().clone());
             downloader::baidu_login::init(app.handle());
+            downloader::quark_login::init(app.handle());
             let mgr = app.state::<TaskManager>();
             mgr.inner.set_app(app.handle().clone());
 

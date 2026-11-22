@@ -119,6 +119,27 @@ pub fn baidu_login_status() -> crate::downloader::baidu_login::BaiduLoginStatus 
     crate::downloader::baidu_login::login_status()
 }
 
+/// 夸克网盘登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘
+#[tauri::command]
+pub async fn quark_login(app: AppHandle) -> Result<String, String> {
+    let session = crate::downloader::quark_login::login_collect(app).await?;
+    crate::downloader::quark_login::save_session(&session)?;
+    Ok("登录成功".into())
+}
+
+/// 夸克网盘退出登录：删除本地会话
+#[tauri::command]
+pub async fn quark_logout() -> Result<(), String> {
+    crate::downloader::quark_login::clear_session();
+    Ok(())
+}
+
+/// 夸克网盘登录状态（设置页展示）
+#[tauri::command]
+pub fn quark_login_status() -> crate::downloader::quark_login::QuarkLoginStatus {
+    crate::downloader::quark_login::login_status()
+}
+
 #[tauri::command]
 pub async fn add_gofile_batch(
     state: State<'_, TaskManager>,

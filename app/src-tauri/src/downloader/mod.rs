@@ -6,4 +6,6 @@ pub mod types;
 #[cfg(desktop)]
 pub mod baidu_login;
 #[cfg(desktop)]
+pub mod quark_login;
+#[cfg(desktop)]
 pub mod webview_extract;
