@@ -180,6 +180,20 @@ export const pan123Login = () => invoke<string>("pan123_login");
 
 export const pan123Logout = () => invoke<void>("pan123_logout");
 
+// ---------- 天翼云盘登录态（WebView 收割 COOKIE_SESSION 会话） ----------
+
+export interface Ty189LoginStatus {
+  logged_in: boolean;
+  saved_at: number | null;
+}
+
+export const ty189LoginStatus = () =>
+  invoke<Ty189LoginStatus>("ty189_login_status");
+
+export const ty189Login = () => invoke<string>("ty189_login");
+
+export const ty189Logout = () => invoke<void>("ty189_logout");
+
 export const addCtBatch = (
   url: string,
   dir?: string,

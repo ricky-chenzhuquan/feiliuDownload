@@ -16,6 +16,9 @@ import {
   pan123Login,
   pan123LoginStatus,
   pan123Logout,
+  ty189Login,
+  ty189LoginStatus,
+  ty189Logout,
   type Settings,
   type UpdateInfo,
 } from "../lib/api";
@@ -45,6 +48,7 @@ export default function SettingsView({ onLoaded }: Props) {
   const baidu = useCloudLogin(baiduLoginStatus, baiduLogin, baiduLogout);
   const quark = useCloudLogin(quarkLoginStatus, quarkLogin, quarkLogout);
   const pan = useCloudLogin(pan123LoginStatus, pan123Login, pan123Logout);
+  const ty189 = useCloudLogin(ty189LoginStatus, ty189Login, ty189Logout);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -299,6 +303,18 @@ export default function SettingsView({ onLoaded }: Props) {
         onLogout={pan.logout}
         loginLabel="登录 123 云盘"
         hint="登录后即可用你自己的账号下载 123 云盘分享内容（注册用户每月 10GB 免费提取流量）。会话 cookie 只保存在本机（0600 权限），不经过任何第三方。"
+      />
+
+      <LoginCard
+        title="天翼云盘登录"
+        loggedIn={ty189.status?.logged_in ?? false}
+        savedAt={ty189.status?.saved_at ?? null}
+        busy={ty189.busy}
+        msg={ty189.msg}
+        onLogin={ty189.login}
+        onLogout={ty189.logout}
+        loginLabel="登录天翼云盘"
+        hint="登录后即可用你自己的账号下载天翼云盘（189）分享内容。会话 cookie 只保存在本机（0600 权限），不经过任何第三方。"
       />
 
       <div className="settings-card muted">
