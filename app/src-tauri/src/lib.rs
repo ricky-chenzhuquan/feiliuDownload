@@ -167,6 +167,52 @@ pub fn run() {
                     }
                 });
 
+                // 自检 10：网盘族匿名链（r5 新站）——夸克访客超限诚实提示 + 123pan
+                // 流量包墙诚实提示；期望=notice 命中且无直链（匿名正确拒绝下载）
+                #[cfg(debug_assertions)]
+                {
+                    let pan_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                        let mgr = pan_handle.state::<TaskManager>();
+                        let cases: [(&str, &str, &str); 2] = [
+                            (
+                                "quark-guest-limit",
+                                "https://pan.quark.cn/s/d34c18e9d62a",
+                                "访客",
+                            ),
+                            (
+                                "pan123-paywall",
+                                "https://www.123865.com/s/iaKtVv-FTaCd?pwd=qaiu",
+                                "登录 123 云盘",
+                            ),
+                        ];
+                        for (label, url, expect) in cases {
+                            let started = std::time::Instant::now();
+                            match mgr.inner.probe_url(url).await {
+                                Ok(p) => {
+                                    // notice 有值时前端已禁止普通添加——诚实引导即成功
+                                    let hit = p
+                                        .notice
+                                        .as_deref()
+                                        .map_or(false, |n| n.contains(expect));
+                                    eprintln!(
+                                        "[feiliu-selftest] {label}: {} {:.1}s 直链空={} 提示={:?}",
+                                        if hit { "成功" } else { "未命中期望" },
+                                        started.elapsed().as_secs_f64(),
+                                        p.notice.is_some(),
+                                        p.notice.as_deref().unwrap_or("-"),
+                                    );
+                                }
+                                Err(e) => eprintln!(
+                                    "[feiliu-selftest] {label}: 失败 {:.1}s err={e}",
+                                    started.elapsed().as_secs_f64()
+                                ),
+                            }
+                        }
+                    });
+                }
+
                 // 自检 3：GoFile JSON 通道端到端——WebView 代取（JSON{url,cookie,name}）
                 // → 引擎式 reqwest 下载裁决（带/不带会话 cookie 各一次）。
                 // 结论写日志 [feiliu-selftest]，决定 gofile 提取器接入与 blob 兜底取舍。
