@@ -40,6 +40,7 @@ mod tiktok;
 mod twitter;
 pub mod ct;
 pub mod pan123;
+pub mod xunlei;
 pub mod quark;
 pub mod fj;
 pub mod uc;
@@ -402,6 +403,18 @@ pub async fn canonical_key(url: &str) -> Option<String> {
             None => format!("pan123:{code}"),
         });
     }
+    // 迅雷云盘分享
+    if lower.contains("pan.xunlei.com") && lower.contains("/s/") {
+        let idx = lower.find("/s/")? + "/s/".len();
+        let code: String = url[idx..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+            .collect();
+        if code.len() < 10 {
+            return None;
+        }
+        return Some(format!("xunlei:{code}"));
+    }
     // UC 网盘分享（fast/drive 子域同一 short key）
     if lower.contains("uc.cn") && lower.contains("/s/") {
         let idx = lower.find("/s/")? + "/s/".len();
@@ -744,6 +757,10 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
             }
         }
         return quark::resolve(url).await;
+    }
+    // 迅雷云盘分享：转存登录墙诚实引导（列表 WebView 代取+登录态全功能挂待办）
+    if lower.contains("pan.xunlei.com/s/") {
+        return xunlei::resolve(url).await;
     }
     // CSDN 下载中心
     if lower.contains("download.csdn.net") {
