@@ -44,6 +44,7 @@ export interface ProbeResult {
     | "uc_share"
     | "baidu_share"
     | "quark_share"
+    | "pan123_share"
     | "ct_share"
     | "bandcamp_album"
     | "bilibili_bangumi"
@@ -130,6 +131,12 @@ export const addQuarkBatch = (
   dir?: string,
   connections?: number,
 ) => invoke<BatchSummary>("add_quark_batch", { url, dir, connections });
+
+export const addPan123Batch = (
+  url: string,
+  dir?: string,
+  connections?: number,
+) => invoke<BatchSummary>("add_pan123_batch", { url, dir, connections });
 
 // ---------- 百度网盘登录态（WebView 收割 BDUSS 会话） ----------
 

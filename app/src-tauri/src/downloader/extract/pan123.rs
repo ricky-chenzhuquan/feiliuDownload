@@ -295,6 +295,14 @@ pub async fn resolve(url: &str) -> Option<super::Extracted> {
     resolve_inner(url, None).await
 }
 
+/// 批量清单：遍历分享树返回文件名+大小（engine add_pan123_batch 数量来源）
+pub async fn list_files(url: &str) -> Result<Vec<(String, u64)>, String> {
+    let (share_key, pwd) = parse_share_url(url).ok_or("非 123 云盘分享链接")?;
+    let http = client(None).ok_or("HTTP 客户端初始化失败")?;
+    let files = walk_files(&http, &share_key, &pwd).await?;
+    Ok(files.into_iter().map(|f| (f.name, f.size)).collect())
+}
+
 /// 登录态解析（pan123_login 会话，sso-token）
 pub async fn resolve_with_cookies(url: &str, session: &str) -> Option<super::Extracted> {
     resolve_inner(url, Some(session)).await

@@ -154,6 +154,20 @@ pub fn quark_login_status() -> crate::downloader::quark_login::QuarkLoginStatus 
     crate::downloader::quark_login::login_status()
 }
 
+/// 123 云盘分享一键批量（登录态月度流量直链逐文件建任务）
+#[tauri::command]
+pub async fn add_pan123_batch(
+    state: State<'_, TaskManager>,
+    url: String,
+    dir: Option<String>,
+    connections: Option<u32>,
+) -> Result<BatchSummary, String> {
+    state
+        .inner
+        .add_pan123_batch(url, dir, connections)
+        .await
+}
+
 /// 123 云盘登录：打开应用内 WebView 登录页，成功后收割 sso-token 会话落盘
 #[tauri::command]
 pub async fn pan123_login(app: AppHandle) -> Result<String, String> {

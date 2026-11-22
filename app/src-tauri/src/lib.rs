@@ -62,6 +62,7 @@ pub fn run() {
             commands::quark_login,
             commands::quark_logout,
             commands::quark_login_status,
+            commands::add_pan123_batch,
             commands::pan123_login,
             commands::pan123_logout,
             commands::pan123_login_status,

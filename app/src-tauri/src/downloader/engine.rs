@@ -458,6 +458,12 @@ impl Inner {
         } else if lower.contains("pan.quark.cn") && lower.contains("/s/") {
             // 夸克网盘：登录态批量转存直链；未登录点批量给诚实引导（命令内拦截）
             Some("quark_share".to_string())
+        } else if lower.contains("123pan.com")
+            || lower.contains("123684.com")
+            || lower.contains("123865.com")
+        {
+            // 123 云盘：登录态用月度流量直链批量；未登录点批量给诚实引导（命令内拦截）
+            Some("pan123_share".to_string())
         } else if lower.contains("ctfile.com") && (lower.contains("/f/") || lower.contains("/d/")) {
             // 城通网盘：/f/ 单文件批量=1 任务无害；/d/ 文件夹批量（轮27 UA 伪装复活）
             Some("ct_share".to_string())
@@ -759,6 +765,58 @@ impl Inner {
 
     /// GoFile 分享一键批量：WebView 代取列文件清单 → 逐个 feiliu_i 序号建任务
     /// （每个文件一次 WebView 代取，同蓝奏云文件夹模式；序号入 canonical 键防撞查重）
+    /// 123 云盘分享一键批量（登录态）：walk 清单 → 逐个 feiliu_i 序号建任务
+    /// （登录态用 10GB/月流量直链；未登录匿名全拦 5112，命令内诚实拦截）
+    pub async fn add_pan123_batch(
+        self: &Arc<Self>,
+        url: String,
+        dir: Option<String>,
+        connections: Option<u32>,
+    ) -> Result<BatchSummary, String> {
+        if crate::downloader::pan123_login::load_session().is_none() {
+            return Err("123 云盘批量下载需要登录：请先在「设置 → 123 云盘」登录自己的账号".into());
+        }
+        let base = url
+            .split(['?', '&'])
+            .next()
+            .unwrap_or(&url)
+            .to_string();
+        let files = crate::downloader::extract::pan123::list_files(&base)
+            .await
+            .map_err(|e| format!("123 云盘分享清单解析失败: {e}"))?;
+        if files.is_empty() {
+            return Err("分享内未解析出文件".into());
+        }
+        let name = files
+            .first()
+            .map(|(n, _)| n.rsplit('/').next().unwrap_or(n).to_string())
+            .unwrap_or_else(|| "123 云盘分享".into());
+        let cap = (self.settings().batch_limit as usize).max(1).min(files.len());
+        let mut added = 0u32;
+        let mut skipped = 0u32;
+        for i in 0..cap {
+            let task_url = if i == 0 {
+                base.clone()
+            } else {
+                format!("{base}?feiliu_i={i}")
+            };
+            match self
+                .add_task(task_url, vec![], None, dir.clone(), connections)
+                .await
+            {
+                Ok(_) => added += 1,
+                Err(_) => skipped += 1, // 流量尽/限流/重复
+            }
+        }
+        Ok(BatchSummary {
+            playlist: name,
+            total: files.len() as u32,
+            added,
+            skipped,
+            truncated: files.len() > cap,
+        })
+    }
+
     /// 夸克网盘分享一键批量（登录态）：walk 清单 → 逐个 feiliu_i 序号建任务
     /// （登录态逐文件转存直链；匿名访客仅 ≤10MiB 可下，批量主路径=登录转存）
     pub async fn add_quark_batch(
