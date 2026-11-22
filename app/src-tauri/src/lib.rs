@@ -251,6 +251,24 @@ pub fn run() {
                     });
                 }
 
+                // 自检 3c：UC 文件夹批量全链路（probe→原生清单→逐文件建任务，r4 轮 21 落地）
+                #[cfg(debug_assertions)]
+                {
+                    let uc_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(14)).await;
+                        eprintln!("[feiliu-selftest] 开始 UC 文件夹批量全链自检（a55f8f6ebd234 图库，9 zip）");
+                        let mgr = uc_handle.state::<downloader::engine::TaskManager>();
+                        match mgr.inner.add_uc_batch("https://drive.uc.cn/s/a55f8f6ebd234?public=1".into(), None, None).await {
+                            Ok(s) => eprintln!(
+                                "[feiliu-selftest] uc-batch: 成功 added={} skipped={} total={} truncated={}",
+                                s.added, s.skipped, s.total, s.truncated
+                            ),
+                            Err(e) => eprintln!("[feiliu-selftest] uc-batch: 失败 err={e}"),
+                        }
+                    });
+                }
+
                 // 自检 4：微博 WebView 代取真机全链（游客墙→statuses/show→CDN 裁决）
                 #[cfg(debug_assertions)]
                 {
