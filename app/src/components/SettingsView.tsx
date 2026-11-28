@@ -7,18 +7,10 @@ import {
   pickFolder,
   setSettings,
   installUpdate,
-  baiduLogin,
-  baiduLoginStatus,
-  baiduLogout,
-  quarkLogin,
-  quarkLoginStatus,
-  quarkLogout,
-  pan123Login,
-  pan123LoginStatus,
-  pan123Logout,
-  ty189Login,
-  ty189LoginStatus,
-  ty189Logout,
+  baiduCloud,
+  quarkCloud,
+  pan123Cloud,
+  ty189Cloud,
   type Settings,
   type UpdateInfo,
 } from "../lib/api";
@@ -44,11 +36,11 @@ export default function SettingsView({ onLoaded }: Props) {
     "idle" | "checking" | UpdateInfo | "error"
   >("idle");
   const [installing, setInstalling] = useState(false);
-  // 网盘登录态（百度/夸克/123 云盘，三站同构 hook）
-  const baidu = useCloudLogin(baiduLoginStatus, baiduLogin, baiduLogout);
-  const quark = useCloudLogin(quarkLoginStatus, quarkLogin, quarkLogout);
-  const pan = useCloudLogin(pan123LoginStatus, pan123Login, pan123Logout);
-  const ty189 = useCloudLogin(ty189LoginStatus, ty189Login, ty189Logout);
+  // 网盘登录态（百度/夸克/123 云盘/天翼，四站同构 hook）
+  const baidu = useCloudLogin(baiduCloud.status, baiduCloud.login, baiduCloud.logout);
+  const quark = useCloudLogin(quarkCloud.status, quarkCloud.login, quarkCloud.logout);
+  const pan = useCloudLogin(pan123Cloud.status, pan123Cloud.login, pan123Cloud.logout);
+  const ty189 = useCloudLogin(ty189Cloud.status, ty189Cloud.login, ty189Cloud.logout);
 
   useEffect(() => {
     getSettings().then((s) => {

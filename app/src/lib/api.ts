@@ -138,61 +138,25 @@ export const addPan123Batch = (
   connections?: number,
 ) => invoke<BatchSummary>("add_pan123_batch", { url, dir, connections });
 
-// ---------- 百度网盘登录态（WebView 收割 BDUSS 会话） ----------
+// ---------- 云盘登录态（四站同构：WebView 收割家族会话，见 cloud_login） ----------
 
-export interface BaiduLoginStatus {
+/** 登录状态摘要（后端 cloud_login::CloudLoginStatus，四站同形） */
+export interface CloudLoginStatus {
   logged_in: boolean;
   saved_at: number | null;
 }
 
-export const baiduLoginStatus = () =>
-  invoke<BaiduLoginStatus>("baidu_login_status");
+/** 云盘登录三件套绑定工厂（后端 cloud_login_commands! 同构——新登录站=一行调用） */
+const cloudLoginBindings = (prefix: string) => ({
+  status: () => invoke<CloudLoginStatus>(`${prefix}_login_status`),
+  login: () => invoke<string>(`${prefix}_login`),
+  logout: () => invoke<void>(`${prefix}_logout`),
+});
 
-export const baiduLogin = () => invoke<string>("baidu_login");
-
-export const baiduLogout = () => invoke<void>("baidu_logout");
-
-// ---------- 夸克网盘登录态（WebView 收割 __pus 会话） ----------
-
-export interface QuarkLoginStatus {
-  logged_in: boolean;
-  saved_at: number | null;
-}
-
-export const quarkLoginStatus = () =>
-  invoke<QuarkLoginStatus>("quark_login_status");
-
-export const quarkLogin = () => invoke<string>("quark_login");
-
-export const quarkLogout = () => invoke<void>("quark_logout");
-
-// ---------- 123 云盘登录态（WebView 收割 sso-token 会话） ----------
-
-export interface PanLoginStatus {
-  logged_in: boolean;
-  saved_at: number | null;
-}
-
-export const pan123LoginStatus = () =>
-  invoke<PanLoginStatus>("pan123_login_status");
-
-export const pan123Login = () => invoke<string>("pan123_login");
-
-export const pan123Logout = () => invoke<void>("pan123_logout");
-
-// ---------- 天翼云盘登录态（WebView 收割 COOKIE_SESSION 会话） ----------
-
-export interface Ty189LoginStatus {
-  logged_in: boolean;
-  saved_at: number | null;
-}
-
-export const ty189LoginStatus = () =>
-  invoke<Ty189LoginStatus>("ty189_login_status");
-
-export const ty189Login = () => invoke<string>("ty189_login");
-
-export const ty189Logout = () => invoke<void>("ty189_logout");
+export const baiduCloud = cloudLoginBindings("baidu");
+export const quarkCloud = cloudLoginBindings("quark");
+export const pan123Cloud = cloudLoginBindings("pan123");
+export const ty189Cloud = cloudLoginBindings("ty189");
 
 export const addCtBatch = (
   url: string,
