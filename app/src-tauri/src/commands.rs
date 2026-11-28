@@ -98,26 +98,38 @@ pub async fn add_baidu_batch(
         .await
 }
 
-/// 百度网盘登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘
-#[tauri::command]
-pub async fn baidu_login(app: AppHandle) -> Result<String, String> {
-    let session = crate::downloader::baidu_login::login_collect(app).await?;
-    crate::downloader::baidu_login::save_session(&session)?;
-    Ok("登录成功".into())
+/// 云盘登录命令三件套生成（四站同构薄壳——新登录站接入=一行调用勿手写；
+/// 会话收割/落盘见 cloud_login 模块）
+macro_rules! cloud_login_commands {
+    ($mod:ident, $login:ident, $logout:ident, $status:ident, $doc:literal) => {
+        #[doc = concat!($doc, "登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘")]
+        #[tauri::command]
+        pub async fn $login(app: AppHandle) -> Result<String, String> {
+            let session = crate::downloader::$mod::login_collect(app).await?;
+            crate::downloader::$mod::save_session(&session)?;
+            Ok("登录成功".into())
+        }
+        #[doc = concat!($doc, "退出登录：删除本地会话")]
+        #[tauri::command]
+        pub async fn $logout() -> Result<(), String> {
+            crate::downloader::$mod::clear_session();
+            Ok(())
+        }
+        #[doc = concat!($doc, "登录状态（设置页展示）")]
+        #[tauri::command]
+        pub fn $status() -> crate::downloader::cloud_login::CloudLoginStatus {
+            crate::downloader::$mod::login_status()
+        }
+    };
 }
 
-/// 百度网盘退出登录：删除本地会话
-#[tauri::command]
-pub async fn baidu_logout() -> Result<(), String> {
-    crate::downloader::baidu_login::clear_session();
-    Ok(())
-}
-
-/// 百度网盘登录状态（设置页展示）
-#[tauri::command]
-pub fn baidu_login_status() -> crate::downloader::baidu_login::BaiduLoginStatus {
-    crate::downloader::baidu_login::login_status()
-}
+cloud_login_commands!(
+    baidu_login,
+    baidu_login,
+    baidu_logout,
+    baidu_login_status,
+    "百度网盘"
+);
 
 /// 夸克网盘分享一键批量（登录态转存直链逐文件建任务）
 #[tauri::command]
@@ -133,26 +145,13 @@ pub async fn add_quark_batch(
         .await
 }
 
-/// 夸克网盘登录：打开应用内 WebView 登录页，成功后收割会话 cookie 落盘
-#[tauri::command]
-pub async fn quark_login(app: AppHandle) -> Result<String, String> {
-    let session = crate::downloader::quark_login::login_collect(app).await?;
-    crate::downloader::quark_login::save_session(&session)?;
-    Ok("登录成功".into())
-}
-
-/// 夸克网盘退出登录：删除本地会话
-#[tauri::command]
-pub async fn quark_logout() -> Result<(), String> {
-    crate::downloader::quark_login::clear_session();
-    Ok(())
-}
-
-/// 夸克网盘登录状态（设置页展示）
-#[tauri::command]
-pub fn quark_login_status() -> crate::downloader::quark_login::QuarkLoginStatus {
-    crate::downloader::quark_login::login_status()
-}
+cloud_login_commands!(
+    quark_login,
+    quark_login,
+    quark_logout,
+    quark_login_status,
+    "夸克网盘"
+);
 
 /// 123 云盘分享一键批量（登录态月度流量直链逐文件建任务）
 #[tauri::command]
@@ -168,47 +167,21 @@ pub async fn add_pan123_batch(
         .await
 }
 
-/// 123 云盘登录：打开应用内 WebView 登录页，成功后收割 sso-token 会话落盘
-#[tauri::command]
-pub async fn pan123_login(app: AppHandle) -> Result<String, String> {
-    let session = crate::downloader::pan123_login::login_collect(app).await?;
-    crate::downloader::pan123_login::save_session(&session)?;
-    Ok("登录成功".into())
-}
+cloud_login_commands!(
+    pan123_login,
+    pan123_login,
+    pan123_logout,
+    pan123_login_status,
+    "123 云盘"
+);
 
-/// 123 云盘退出登录：删除本地会话
-#[tauri::command]
-pub async fn pan123_logout() -> Result<(), String> {
-    crate::downloader::pan123_login::clear_session();
-    Ok(())
-}
-
-/// 123 云盘登录状态（设置页展示）
-#[tauri::command]
-pub fn pan123_login_status() -> crate::downloader::pan123_login::PanLoginStatus {
-    crate::downloader::pan123_login::login_status()
-}
-
-/// 天翼云盘登录：打开应用内 WebView 登录页，成功后收割 COOKIE_SESSION 会话落盘
-#[tauri::command]
-pub async fn ty189_login(app: AppHandle) -> Result<String, String> {
-    let session = crate::downloader::ty189_login::login_collect(app).await?;
-    crate::downloader::ty189_login::save_session(&session)?;
-    Ok("登录成功".into())
-}
-
-/// 天翼云盘退出登录：删除本地会话
-#[tauri::command]
-pub async fn ty189_logout() -> Result<(), String> {
-    crate::downloader::ty189_login::clear_session();
-    Ok(())
-}
-
-/// 天翼云盘登录状态（设置页展示）
-#[tauri::command]
-pub fn ty189_login_status() -> crate::downloader::ty189_login::Ty189LoginStatus {
-    crate::downloader::ty189_login::login_status()
-}
+cloud_login_commands!(
+    ty189_login,
+    ty189_login,
+    ty189_logout,
+    ty189_login_status,
+    "天翼云盘"
+);
 
 #[tauri::command]
 pub async fn add_gofile_batch(

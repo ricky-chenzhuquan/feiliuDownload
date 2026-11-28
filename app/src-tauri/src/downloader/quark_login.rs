@@ -66,24 +66,9 @@ pub fn clear_session() {
     }
 }
 
-/// 登录状态摘要（前端设置页展示）
-#[derive(Debug, Serialize)]
-pub struct QuarkLoginStatus {
-    pub logged_in: bool,
-    pub saved_at: Option<i64>,
-}
-
-pub fn login_status() -> QuarkLoginStatus {
-    match load_session() {
-        Some(s) => QuarkLoginStatus {
-            logged_in: true,
-            saved_at: Some(s.saved_at),
-        },
-        None => QuarkLoginStatus {
-            logged_in: false,
-            saved_at: None,
-        },
-    }
+/// 登录状态摘要（前端设置页展示；四站统一 cloud_login::CloudLoginStatus）
+pub fn login_status() -> cloud_login::CloudLoginStatus {
+    cloud_login::status_of(load_session().map(|s| s.saved_at))
 }
 
 /// 打开可见登录窗口并收割会话（共享流程见 `cloud_login::collect`）

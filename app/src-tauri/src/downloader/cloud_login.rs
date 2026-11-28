@@ -10,6 +10,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serde::Serialize;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri::WebviewWindowBuilder;
@@ -91,6 +92,21 @@ pub fn save_json_at<S: serde::Serialize>(p: &Path, s: &S) -> Result<(), String> 
 /// 删除会话文件（不存在视为已退出，幂等）
 pub fn clear_at(p: &Path) {
     let _ = std::fs::remove_file(p);
+}
+
+/// 登录状态摘要（前端设置页展示；四站同形，JSON 字段 logged_in/saved_at）
+#[derive(Debug, Serialize)]
+pub struct CloudLoginStatus {
+    pub logged_in: bool,
+    pub saved_at: Option<i64>,
+}
+
+/// 由「是否有会话（含收割时间）」构造状态摘要
+pub fn status_of(saved_at: Option<i64>) -> CloudLoginStatus {
+    CloudLoginStatus {
+        logged_in: saved_at.is_some(),
+        saved_at,
+    }
 }
 
 /// 打开可见登录窗口，轮询原生全量 cookie store 等待登录标记 cookie 出现。
