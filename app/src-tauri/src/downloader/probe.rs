@@ -186,6 +186,31 @@ pub async fn probe_direct_ref(
 
 
 
+/// 站点凭据三头组装：Referer + 会话 cookie + 站点指定 UA。
+/// 四条真实请求路径（head/range 探测 + 分片/单连接下载）共用——新增请求
+/// 路径必须复用本助手勿裸建（GoFile 会话 cookie/百度 netdisk UA 贯穿点）。
+pub(crate) fn apply_site_headers(
+    req: reqwest::RequestBuilder,
+    referer: Option<&str>,
+    cookies: Option<&str>,
+    user_agent: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let req = match referer {
+        Some(r) => req.header(reqwest::header::REFERER, r),
+        None => req,
+    };
+    // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
+    let req = match cookies {
+        Some(c) => req.header(reqwest::header::COOKIE, c),
+        None => req,
+    };
+    // 站点要求的 UA（百度网盘 dlink 强制 netdisk UA）
+    match user_agent {
+        Some(ua) => req.header(reqwest::header::USER_AGENT, ua),
+        None => req,
+    }
+}
+
 pub async fn head_probe_detail(
     client: &Client,
     url: &str,
@@ -193,18 +218,8 @@ pub async fn head_probe_detail(
     cookies: Option<&str>,
     user_agent: Option<&str>,
 ) -> Option<ProbeInfo> {
-    let mut req = client.head(url);
-    if let Some(r) = referer {
-        req = req.header(reqwest::header::REFERER, r);
-    }
-    // 会话 cookie 透传（GoFile 直链无 cookie 302，探测拿不到大小）
-    if let Some(c) = cookies {
-        req = req.header(reqwest::header::COOKIE, c);
-    }
-    // 站点要求的 UA（百度网盘 dlink 强制 netdisk UA）
-    if let Some(ua) = user_agent {
-        req = req.header(reqwest::header::USER_AGENT, ua);
-    }
+    let req = client.head(url);
+    let req = apply_site_headers(req, referer, cookies, user_agent);
     let resp = match req.send().await {
         Ok(r) => {
             eprintln!("[feiliu-probe] head: status={} url={}", r.status(), url);
@@ -251,20 +266,10 @@ pub async fn range_probe_detail(
     cookies: Option<&str>,
     user_agent: Option<&str>,
 ) -> Option<ProbeInfo> {
-    let mut req = client
+    let req = client
         .get(url)
         .header(reqwest::header::RANGE, "bytes=0-0");
-    if let Some(r) = referer {
-        req = req.header(reqwest::header::REFERER, r);
-    }
-    // 会话 cookie 透传（同 head）
-    if let Some(c) = cookies {
-        req = req.header(reqwest::header::COOKIE, c);
-    }
-    // 站点要求的 UA（同 head）
-    if let Some(ua) = user_agent {
-        req = req.header(reqwest::header::USER_AGENT, ua);
-    }
+    let req = apply_site_headers(req, referer, cookies, user_agent);
     let resp = match req.send().await
     {
         Ok(r) => {

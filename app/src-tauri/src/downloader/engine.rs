@@ -2015,20 +2015,12 @@ async fn download_chunk(
         let req = client.get(url).header(RANGE, range);
         let req = {
             let m = shared.meta.read().unwrap();
-            let req = match m.referer.clone() {
-                Some(r) => req.header(reqwest::header::REFERER, r),
-                None => req,
-            };
-            // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
-            let req = match m.cookies.clone() {
-                Some(c) => req.header(reqwest::header::COOKIE, c),
-                None => req,
-            };
-            // 站点要求的 UA（百度网盘 dlink 强制 netdisk）
-            match m.user_agent.clone() {
-                Some(ua) => req.header(reqwest::header::USER_AGENT, ua),
-                None => req,
-            }
+            super::probe::apply_site_headers(
+                req,
+                m.referer.as_deref(),
+                m.cookies.as_deref(),
+                m.user_agent.as_deref(),
+            )
         };
         let resp = req.send().await;
 
@@ -2084,21 +2076,12 @@ async fn download_single(
             let m = shared.meta.read().unwrap();
             (m.referer.clone(), m.cookies.clone(), m.user_agent.clone())
         };
-        let req = client.get(url);
-        let req = match referer {
-            Some(r) => req.header(reqwest::header::REFERER, r),
-            None => req,
-        };
-        // 会话 cookie 透传（GoFile 等 CDN 校验会话级凭据的站点）
-        let req = match cookies {
-            Some(c) => req.header(reqwest::header::COOKIE, c),
-            None => req,
-        };
-        // 站点要求的 UA（百度网盘 dlink 强制 netdisk）
-        let req = match user_agent {
-            Some(ua) => req.header(reqwest::header::USER_AGENT, ua),
-            None => req,
-        };
+        let req = super::probe::apply_site_headers(
+            client.get(url),
+            referer.as_deref(),
+            cookies.as_deref(),
+            user_agent.as_deref(),
+        );
         match req.send().await {
             Ok(r) if r.status().is_success() => {
                 let _ = std::fs::remove_file(part);
