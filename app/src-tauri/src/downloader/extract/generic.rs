@@ -80,6 +80,7 @@ fn find_meta<'a>(html: &'a str, prop: &str) -> Option<&'a str> {
 pub async fn resolve(url: &str) -> Option<super::Extracted> {
     let http = reqwest::Client::builder()
         .user_agent(MOBILE_UA)
+        .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .ok()?;
     // 范围嗅探：只取 64KB 判断类型并解析 meta（直链媒体文件在这里直接返回 None）

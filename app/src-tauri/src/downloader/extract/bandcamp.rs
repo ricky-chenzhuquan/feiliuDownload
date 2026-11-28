@@ -14,6 +14,7 @@ const DESKTOP_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 fn client() -> Option<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(DESKTOP_UA)
+        .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .ok()
 }

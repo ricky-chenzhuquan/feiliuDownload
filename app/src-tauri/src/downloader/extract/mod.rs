@@ -251,6 +251,8 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(helpers::MOBILE_UA)
+            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .ok()?;
         let resp = client.get(url).send().await.ok()?;
@@ -293,6 +295,8 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(helpers::MOBILE_UA)
+            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .ok()?;
         let resp = client.get(url).send().await.ok()?;
@@ -525,6 +529,8 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(helpers::MOBILE_UA)
+            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .ok()?;
         let resp = client.get(url).send().await.ok()?;
@@ -559,6 +565,8 @@ pub async fn canonical_key(url: &str) -> Option<String> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(helpers::MOBILE_UA)
+            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .ok()?;
         let resp = client.get(url).send().await.ok()?;

@@ -24,6 +24,7 @@ fn page_client() -> Option<reqwest::Client> {
         .user_agent(UA)
         .redirect(reqwest::redirect::Policy::limited(8))
         .cookie_store(true)
+        .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .ok()
 }
