@@ -18,11 +18,28 @@ import {
   pickTorrentFile,
   probeMirrors,
   probeUrl,
+  readClipboard,
   type MirrorProbe,
   type ProbeResult,
 } from "../lib/api";
 import { formatBytes, formatSpeed } from "../lib/format";
 import { IconAlert, IconBolt, IconClipboard, IconClose, IconFolder, IconLink } from "./Icons";
+
+/** 批量按钮文案映射：batch_kind → [文案, 计数单位]（未收录 kind 兜底=82DJ 免费歌曲） */
+const BATCH_LABELS: Record<string, [string, string]> = {
+  bilibili_collection: ["⚡ 一键添加合集/系列视频", "个"],
+  lanzou_folder: ["⚡ 一键添加文件夹文件", "个"],
+  gofile_share: ["⚡ 一键添加分享内文件", "个"],
+  uc_share: ["⚡ 一键添加分享内文件", "个"],
+  ct_share: ["⚡ 一键添加文件夹文件", "个"],
+  bandcamp_album: ["⚡ 一键添加专辑曲目", "首"],
+  bilibili_bangumi: ["⚡ 一键添加番剧集", "集"],
+};
+
+function batchButtonLabel(kind: string, limit: number): string {
+  const [base, unit] = BATCH_LABELS[kind] ?? ["⚡ 一键添加免费歌曲", "首"];
+  return `${base}（前 ${limit} ${unit}）`;
+}
 
 interface Props {
   open: boolean;
@@ -65,7 +82,6 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
       } else if (!mobile) {
         // 打开弹窗时剪贴板里若已是链接 → 自动预填并探测（替代手动粘贴）
         void (async () => {
-          const { readClipboard } = await import("../lib/api");
           const text = await readClipboard();
           if (!text) return;
           const u = extractFirstUrl(text);
@@ -339,21 +355,7 @@ export default function NewTaskModal({ open, initialUrl, onClose, onAdded }: Pro
                 >
                   {batching
                     ? "解析添加中…"
-                    : probe.batch_kind === "bilibili_collection"
-                      ? `⚡ 一键添加合集/系列视频（前 ${batchLimit} 个）`
-                      : probe.batch_kind === "lanzou_folder"
-                        ? `⚡ 一键添加文件夹文件（前 ${batchLimit} 个）`
-                        : probe.batch_kind === "gofile_share"
-                          ? `⚡ 一键添加分享内文件（前 ${batchLimit} 个）`
-                          : probe.batch_kind === "uc_share"
-                            ? `⚡ 一键添加分享内文件（前 ${batchLimit} 个）`
-                            : probe.batch_kind === "ct_share"
-                              ? `⚡ 一键添加文件夹文件（前 ${batchLimit} 个）`
-                              : probe.batch_kind === "bandcamp_album"
-                            ? `⚡ 一键添加专辑曲目（前 ${batchLimit} 首）`
-                          : probe.batch_kind === "bilibili_bangumi"
-                            ? `⚡ 一键添加番剧集（前 ${batchLimit} 集）`
-                            : "⚡ 一键添加免费歌曲（上限 30 首）"}
+                    : batchButtonLabel(probe.batch_kind, batchLimit)}
                 </button>
               )}
               {batchMsg && <div className="notice-ok">{batchMsg}</div>}
