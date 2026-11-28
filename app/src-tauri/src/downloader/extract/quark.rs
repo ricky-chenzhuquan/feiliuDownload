@@ -208,7 +208,8 @@ async fn guest_download(
             .ok_or_else(|| "访客直下响应缺 download_url".into()),
         // 23018=访客大小限制；41020=转存文件 token 校验异常（超限实测形态）
         Some(c @ (23018 | 41020)) => Err(format!("GUEST_LIMIT:{c}")),
-        Some(31001) => Err("未登录或会话已失效".into()),
+        // 31001=require login（r6 轮1 实锤：平台同步 UC 收紧，访客直下整体关闭）
+        Some(31001) => Err("夸克平台要求登录后下载（访客免登录下载已关闭，登录后可自动转存直链）".into()),
         Some(c) => Err(format!(
             "夸克直链获取失败(code={c}): {}",
             v.get("message").and_then(|m| m.as_str()).unwrap_or("?")
@@ -497,8 +498,8 @@ mod tests {
             info.filename
         );
         assert!(
-            info.notice.as_deref().unwrap_or("").contains("访客") && info.direct_url.is_empty(),
-            "超限文件应给诚实提示而非直链: {:?}",
+            info.notice.as_deref().unwrap_or("").contains("登录") && info.direct_url.is_empty(),
+            "平台关闭访客下载后（r6 轮1 实锤 31001）应给诚实登录墙提示而非直链: {:?}",
             info.notice
         );
         println!("quark OK: {} | {}", info.filename, info.notice.unwrap_or_default());

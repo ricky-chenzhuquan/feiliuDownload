@@ -207,7 +207,7 @@ mod tests {
         if std::env::var("FEILIU_NET_TEST").is_err() {
             return;
         }
-        let info = super::super::resolve_retry("https://c.wss.ink/f/lez4cxos4el")
+        let info = super::super::resolve_retry("https://c.wss.ink/f/ym759pkeg2v")
             .await
             .expect("文叔叔解析失败");
         assert!(

@@ -1,6 +1,12 @@
 //! UC 网盘分享解析（r4 轮 6 落地）。
 //!
-//! 链路（全部匿名，真实验证 2026-11-22）：
+//! ⚠️ 平台收紧（r6 轮1 实锤 2026-11-28）：`file/download` 匿名调用返回 HTTP 401 +
+//! code 31001 "require login [pc web guest only allows single image]"——访客免登录
+//! 下载已被平台关闭（仅放行单张图片），与夸克（同家族 API，同日 31001）同步收紧。
+//! 匿名仍可 token→列表（列结构/文件名可用），下载步给诚实登录墙提示；
+//! 登录态下载路线（夸克/百度先例同构）挂后续轮。
+//!
+//! 链路（匿名至列表，真实验证 2026-11-22；下载步 2026-11-28 起需登录）：
 //! - token：POST pc-api.uc.cn/1/clouddrive/share/sharepage/token {pwd_id,passcode} → stoken
 //! - 列表：GET .../transfer_share/detail?pwd_id&passcode&stoken&entry=ft&fr=pc&pr=UCBrowser → list{fid,file_name,size,file,share_fid_token}
 //! - 下载：POST .../file/download {fids,pwd_id,stoken,fids_token} → data[0].download_url
@@ -309,9 +315,29 @@ pub async fn resolve(url: &str) -> Option<Extracted> {
             "fids_token": [target.token],
         }),
     )
-    .await
-    .ok()?;
-    let direct = dl
+    .await;
+    let direct = match dl {
+        Ok(v) => v,
+        // 31001=require login（r6 轮1 实锤：平台关闭访客下载，仅放行单张图片）
+        Err(e) if e.starts_with("UC code=31001") => {
+            return Some(Extracted {
+                direct_url: String::new(),
+                filename: target.name.clone(),
+                referer: Some(DL_REFERER.into()),
+                notice: Some(
+                    "UC 网盘平台已关闭访客免登录下载（仅放行单张图片），需登录 UC 账号后方可下载「".to_string()
+                        + &target.name
+                        + "」。",
+
+                ),
+                cookies: None,
+                user_agent: None,
+                webview_plan: None,
+            });
+        }
+        Err(_) => return None,
+    };
+    let direct = direct
         .pointer("/data/0/download_url")
         .and_then(|u| u.as_str())?
         .to_string();
@@ -373,19 +399,18 @@ mod tests {
         let info = super::super::resolve_retry("https://drive.uc.cn/s/12450d1694844?public=1")
             .await
             .expect("UC 解析失败");
+        // r6 轮1 实锤：平台关闭访客免登录下载（31001 "guest only allows single image"）
+        // 匿名解析仍列出结构与文件名，但下载步给诚实登录墙提示
         assert!(
-            info.direct_url.contains(".pds.uc.cn/"),
-            "直链必须是 UC 自有 CDN（pds.uc.cn）: {}",
-            info.direct_url
+            info.notice.as_deref().unwrap_or("").contains("登录") && info.direct_url.is_empty(),
+            "访客下载被平台关闭后应给诚实登录墙提示: {:?}",
+            info.notice
         );
-        let cookies = info.cookies.expect("__pugs 会话 cookie 必须透传");
-        assert!(cookies.contains("__pugs="), "cookie 必须含 __pugs: {cookies}");
         assert!(
             info.filename.ends_with(".mp4"),
             "真实文件名: {}",
             info.filename
         );
-        assert!(info.notice.is_none(), "可下载分享不应有 notice");
     }
 
     /// 文件夹批量清单（真实夹具：图库1 → 9 个 zip，feiliu_i 序号 URL）
@@ -412,14 +437,11 @@ mod tests {
         let info = super::super::resolve_retry("https://drive.uc.cn/s/a55f8f6ebd234?public=1&feiliu_i=0")
             .await
             .expect("UC 序号解析失败");
+        // r6 轮1 实锤：访客下载被平台关闭，序号形态同样走诚实登录墙提示
         assert!(
-            info.direct_url.contains(".pds.uc.cn/"),
-            "序号形态同样产出直链: {}",
-            info.direct_url
-        );
-        assert!(
-            info.cookies.expect("__pugs 必须透传").contains("__pugs="),
-            "序号形态 cookie 透传"
+            info.notice.as_deref().unwrap_or("").contains("登录") && info.direct_url.is_empty(),
+            "序号形态应给诚实登录墙提示: {:?}",
+            info.notice
         );
     }
 
@@ -433,11 +455,11 @@ mod tests {
         let info = super::super::resolve_retry("https://drive.uc.cn/s/a55f8f6ebd234?public=1")
             .await
             .expect("UC 解析失败");
+        // r6 轮1 实锤：文件夹分享进入子级取到首个文件后，下载步同样给诚实登录墙提示
         assert!(
-            info.direct_url.contains(".pds.uc.cn/"),
-            "文件夹分享应进入子级解析出直链: {}",
-            info.direct_url
+            info.notice.as_deref().unwrap_or("").contains("登录") && info.direct_url.is_empty(),
+            "文件夹分享首文件应给诚实登录墙提示: {:?}",
+            info.notice
         );
-        assert!(info.notice.is_none(), "可下载时不应有 notice");
     }
 }
