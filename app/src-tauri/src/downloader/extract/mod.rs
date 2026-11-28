@@ -243,29 +243,38 @@ pub struct Extracted {
 
 /// 站点规范身份键：同一内容的不同 URL 形态（短链、带分享参数、www/移动域）
 /// 映射到同一键，供引擎跨形态查重。None = 无规范键（HTTP 直链等，按原 URL 去重）。
-/// 纯 URL 解析为主（无网络）；仅 b23.tv 短链需跟随一次重定向。
+/// 短链跟随：禁重定向客户端取 LOCATION，落点过 accept 校验后递归求规范键。
+/// 三站短链（b23.tv/vt·vm.tiktok/v.douyin）共用骨架；死主机 TCP 连接会挂
+/// OS 级超时（macOS ~75s）——connect_timeout 显式限时（r6 轮8）。
+async fn follow_shortlink<F>(url: &str, accept: F) -> Option<String>
+where
+    F: Fn(&str) -> bool,
+{
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .user_agent(helpers::MOBILE_UA)
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .build()
+        .ok()?;
+    let resp = client.get(url).send().await.ok()?;
+    let loc = resp
+        .headers()
+        .get(reqwest::header::LOCATION)?
+        .to_str()
+        .ok()?
+        .to_string();
+    if loc.starts_with("http") && accept(&loc) {
+        return Box::pin(canonical_key(&loc)).await;
+    }
+    None
+}
+
+/// 纯 URL 解析为主（无网络）；仅短链需跟随一次重定向。
 pub async fn canonical_key(url: &str) -> Option<String> {
     let lower = url.to_lowercase();
     // b23.tv 短链 → 跟随重定向后递归
     if lower.contains("b23.tv/") {
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(helpers::MOBILE_UA)
-            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .build()
-            .ok()?;
-        let resp = client.get(url).send().await.ok()?;
-        let loc = resp
-            .headers()
-            .get(reqwest::header::LOCATION)?
-            .to_str()
-            .ok()?
-            .to_string();
-        if loc.starts_with("http") {
-            return Box::pin(canonical_key(&loc)).await;
-        }
-        return None;
+        return follow_shortlink(url, |_| true).await;
     }
     // B 站视频（BV 号 + 分 P）
     if lower.contains("bilibili.com/video") {
@@ -292,24 +301,7 @@ pub async fn canonical_key(url: &str) -> Option<String> {
     }
     // TikTok（视频 id 键；vt/vm 短链跟随跳转后递归）
     if lower.contains("vt.tiktok.com") || lower.contains("vm.tiktok.com") {
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(helpers::MOBILE_UA)
-            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .build()
-            .ok()?;
-        let resp = client.get(url).send().await.ok()?;
-        let loc = resp
-            .headers()
-            .get(reqwest::header::LOCATION)?
-            .to_str()
-            .ok()?
-            .to_string();
-        if loc.starts_with("http") && loc.to_lowercase().contains("/video/") {
-            return Box::pin(canonical_key(&loc)).await;
-        }
-        return None;
+        return follow_shortlink(url, |l| l.to_lowercase().contains("/video/")).await;
     }
     if lower.contains("tiktok.com") && lower.contains("/video/") {
         let idx = lower.find("/video/")? + "/video/".len();
@@ -526,24 +518,7 @@ pub async fn canonical_key(url: &str) -> Option<String> {
     }
     // 抖音短链（v.douyin.com/xxx）→ 跟随重定向后递归
     if lower.contains("v.douyin.com/") {
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(helpers::MOBILE_UA)
-            // 死主机 TCP 连接会挂到 OS 级超时（macOS ~75s）——必须显式限时
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .build()
-            .ok()?;
-        let resp = client.get(url).send().await.ok()?;
-        let loc = resp
-            .headers()
-            .get(reqwest::header::LOCATION)?
-            .to_str()
-            .ok()?
-            .to_string();
-        if loc.starts_with("http") {
-            return Box::pin(canonical_key(&loc)).await;
-        }
-        return None;
+        return follow_shortlink(url, |_| true).await;
     }
     // 抖音（视频/图集 id）
     if lower.contains("douyin.com") || lower.contains("iesdouyin.com") {
