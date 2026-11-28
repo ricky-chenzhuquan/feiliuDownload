@@ -57,12 +57,6 @@ impl Sidecar {
         fs::rename(&tmp, &self.meta_path).map_err(|e| e.to_string())
     }
 
-    #[allow(dead_code)]
-    pub fn read_meta(&self) -> Option<SidecarMeta> {
-        let data = fs::read(&self.meta_path).ok()?;
-        serde_json::from_slice(&data).ok()
-    }
-
     pub fn part_file(&self, index: u32) -> PathBuf {
         self.parts_dir.join(format!("part_{index:06}"))
     }
